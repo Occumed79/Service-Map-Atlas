@@ -1,0 +1,449 @@
+# Occu-Med Global Coverage Atlas — Full Production Build Prompt
+
+Build a production-ready, enterprise-grade, client-facing global service coverage platform called:
+
+## Occu-Med Global Coverage Atlas
+
+This is NOT an internal dashboard or MVP toy project.
+This is a premium client-facing platform intended for employers, coordinators, operational teams, and enterprise clients worldwide.
+
+The application must feel:
+
+* Elegant
+* Sophisticated
+* Trustworthy
+* High-end
+* Ultra polished
+* Apple/macOS-inspired
+* Glassmorphism-based
+* Luminous and layered
+* Smooth and cinematic
+
+The app must NOT look AI-generated, generic, template-based, or like a standard SaaS admin dashboard.
+
+Avoid:
+
+* Bulky sidebars
+* Generic Tailwind card grids
+* Cookie-cutter layouts
+* Obvious boilerplate UI
+* Cheap dashboard styling
+* “Startup template” appearance
+
+The design language should feel closer to:
+
+* Apple Maps
+* Arc browser
+* Linear
+* Notion Calendar
+* Modern macOS translucency
+* Enterprise command/intelligence systems
+
+---
+
+# Technical Requirements
+
+## Stack
+
+Use:
+
+* React
+* TypeScript
+* Node.js
+* Express
+* PostgreSQL
+* Neon database
+* Prisma ORM or Drizzle ORM
+* Tailwind CSS
+* Framer Motion for animations
+
+## Deployment
+
+The application will be deployed on:
+
+* Render
+
+DO NOT:
+
+* Use Replit-specific infrastructure
+* Use Replit authentication
+* Use Replit databases
+* Use Replit-only APIs
+* Hardcode localhost assumptions
+* Create anything that only works inside Replit
+
+The app must be fully portable and production deployable.
+
+The project must:
+
+* Run locally with npm install and npm run dev
+* Build successfully with npm run build
+* Use environment variables
+* Include a clean .env.example
+* Include Render deployment instructions
+* Use DATABASE_URL for Neon
+
+---
+
+# Authentication System
+
+Implement a professional invite-based authentication system.
+
+## Requirements
+
+* Admin users can invite users by email
+* Invited users receive secure signup links
+* Users create credentials upon invitation acceptance
+* Email authentication support
+* Session management
+* Password reset support
+* Secure authentication middleware
+* Role-based access control
+
+## User Roles
+
+Support:
+
+* Super Admin
+* Admin
+* Client User
+* Read-Only User
+
+---
+
+# Core Platform Purpose
+
+The platform displays a worldwide interactive map showing:
+
+* Medical providers
+* Occupational health clinics
+* Dental providers
+* Radiology facilities
+* Laboratories
+* Audiology locations
+* Spirometry/PFT providers
+* Drug screening facilities
+* EKG providers
+* Stress test providers
+* Physical examination providers
+* Specialized service vendors
+
+This is global and scalable.
+
+---
+
+# Global Interactive Map
+
+Create a full-screen immersive global map experience.
+
+## Map Requirements
+
+* Extremely smooth zooming/panning
+* Beautiful transitions
+* Elegant animations
+* Dynamic lighting/glow effects
+* Soft layered glass panels
+* Floating UI elements
+* Responsive desktop/mobile experience
+
+## Search Bar
+
+At the top center of the interface:
+
+* Include a premium floating search bar
+* User can search:
+
+  * Address
+  * ZIP code
+  * City
+  * State
+  * Country
+  * Facility name
+
+The map should:
+
+* Geocode the location
+* Smoothly zoom into the searched location
+* Animate elegantly
+* Display nearby providers/services
+
+The search interaction should feel refined and cinematic.
+
+---
+
+# Service Categories
+
+Support filtering by service type:
+
+* Dental
+* Chest X-Ray
+* B-Reader
+* Spirometry
+* Pulmonary Function Testing
+* Drug Screen
+* DOT Physical
+* Audiogram
+* EKG
+* Treadmill Stress Test
+* Laboratory Services
+* Titers
+* Vaccinations
+* Physical Examination
+* Vision Testing
+* Occupational Medicine
+* Specialty Services
+
+Filtering should:
+
+* Update instantly
+* Use elegant floating chips/buttons
+* Avoid ugly sidebars
+
+---
+
+# Provider Markers
+
+Map markers should:
+
+* Look refined and premium
+* Glow subtly
+* Cluster elegantly
+* Animate smoothly
+
+Marker popups should display:
+
+* Provider name
+* Address
+* Services offered
+* Contact details
+* Availability notes
+* Coverage notes
+* Service capabilities
+* Internal tags
+* Request service button
+
+---
+
+# Client Action System
+
+Include elegant floating action buttons such as:
+
+* Request Service
+* Contact Occu-Med
+* Coordinate Service
+* Submit Request
+
+## Request Modal
+
+The modal should collect:
+
+* Client name
+* Employer/company
+* Email
+* Phone
+* Requested service
+* Requested location
+* Urgency
+* Notes/comments
+
+Requests must:
+
+* Save to database
+* Be visible in admin dashboard
+* Optionally trigger email notifications
+
+---
+
+# Search Intelligence & Demand Analytics
+
+Every search must be recorded in the backend database.
+
+## Track:
+
+* user_id
+* user_name
+* user_email
+* employer_account_id
+* employer_name
+* employer_email_domain
+* search_text
+* selected_service_type
+* geocoded city/state/country
+* latitude
+* longitude
+* timestamp
+* matching provider count
+* zero-result search yes/no
+* marker clicked yes/no
+* request submitted after search yes/no
+
+## Purpose
+
+This system helps identify:
+
+* Client demand
+* Coverage gaps
+* Underserved regions
+* Employer demand trends
+* Expansion opportunities
+* Frequently requested services
+
+---
+
+# Analytics Dashboard
+
+Admin analytics should include:
+
+* Most searched services
+* Most searched geographies
+* Employer search trends
+* Demand heatmaps
+* Searches with zero results
+* Search-to-request conversion metrics
+* Most active employers
+* Geographic demand clusters
+* CSV export support
+
+Admins should be able to identify:
+
+* Which employers are searching which services
+* Which employers are repeatedly searching uncovered areas
+* Which services are most requested by each employer
+
+Only admins may view analytics.
+
+---
+
+# Admin System
+
+Create a premium admin experience.
+
+Admins should be able to:
+
+* Add providers
+* Edit providers
+* Delete providers
+* Assign services
+* Create categories
+* Manage users
+* Manage invitations
+* Review requests
+* Review analytics
+* Manage provider visibility
+* Add internal notes/tags
+
+Admin UI must maintain the same premium design language.
+
+---
+
+# Database Tables
+
+Create at minimum:
+
+* users
+* employer_accounts
+* invitations
+* service_locations
+* service_categories
+* location_services
+* service_requests
+* search_events
+* provider_notes
+* activity_logs
+
+---
+
+# Disclaimer Component
+
+Include a small but visible premium disclaimer component near the bottom of the map interface.
+
+## Design
+
+* Glassmorphism
+* Soft blur
+* Elegant border glow
+* Refined typography
+* Non-intrusive
+* Always visible
+* Premium appearance
+* Responsive
+
+## Disclaimer Text
+
+“The absence of a provider or service location within this portal does not necessarily indicate that Occu-Med is unable to coordinate or facilitate that service. While we continuously expand and update our provider network database, some providers, locations, or services may not yet be reflected within the platform. Clients are encouraged to contact Occu-Med directly for assistance with service coordination, provider availability, or specialized requests. This tool is intended to facilitate and streamline the search process.”
+
+Include:
+
+* Contact Us link
+* Smooth hover animations
+* Optional request modal trigger
+
+The disclaimer should feel reassuring and professional — not defensive.
+
+---
+
+# Performance Requirements
+
+The application must:
+
+* Load quickly
+* Support worldwide scale
+* Handle large provider datasets
+* Use efficient marker clustering
+* Use lazy loading where appropriate
+* Use optimized database queries
+* Use pagination where needed
+
+---
+
+# UI/UX Standards
+
+The platform should feel:
+
+* Ultra modern
+* Premium enterprise-grade
+* Elegant
+* Luxurious
+* High trust
+* Fluid
+* Minimal but powerful
+
+Animation style:
+
+* Smooth
+* Subtle
+* Refined
+* Cinematic
+* Never excessive
+
+Typography:
+
+* Clean
+* Modern
+* Premium
+* Spacious
+
+Use:
+
+* Layered translucency
+* Depth
+* Soft gradients
+* Intelligent lighting
+* Floating panels
+* Frosted glass effects
+
+---
+
+# Final Important Instruction
+
+This application is client-facing and enterprise-oriented.
+
+The UI must NOT:
+
+* Look AI-generated
+* Look like a generic admin dashboard
+* Feel unfinished
+* Feel startup-cheap
+* Use obvious boilerplate templates
+
+The final result should feel like a sophisticated global operational intelligence platform built for enterprise healthcare coordination and worldwide service coverage management.

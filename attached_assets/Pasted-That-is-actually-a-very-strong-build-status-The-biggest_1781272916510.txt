@@ -1,0 +1,52 @@
+That is actually a very strong build status. The biggest thing now is: do not keep adding random features yet. First make Replit/Cascade verify the app is truly deployable on Render.
+
+Send this next:
+
+Great. Before adding any new features, do a production-readiness verification pass.
+
+Please verify and fix the following:
+
+1. Render deployment readiness
+
+* Confirm the app has a proper Render-compatible build/start setup.
+* Confirm there is no Replit-specific hosting logic.
+* Confirm all required environment variables are documented in .env.example.
+* Confirm the frontend correctly points to the backend API in production.
+* Confirm the app can run after a clean install using only the documented setup.
+
+2. Database and migrations
+
+* Confirm the Neon/Postgres schema is reproducible from migrations.
+* Confirm sessions table creation is included in the schema/migration process and not only manually created.
+* Confirm seed data is optional and does not overwrite production data.
+* Confirm admin user creation is documented safely.
+
+3. Authentication/security
+
+* Confirm invite-only registration cannot be bypassed.
+* Confirm admin routes are protected server-side, not only hidden in the UI.
+* Confirm session cookies are secure for production.
+* Confirm password hashing is using a safe library and sensible settings.
+* Confirm there are no hardcoded secrets or demo credentials that would ship to production.
+
+4. Search/event analytics
+
+* Confirm every search event is actually saved to the backend.
+* Confirm search events include logged-in user, employer/account, email domain, selected service, location, result count, zero-result status, marker click, and service request conversion when available.
+* Confirm regular users cannot view analytics.
+
+5. Client-facing polish
+
+* Confirm the disclaimer is present, small but visible, and uses the corrected absence language.
+* Confirm the service request/contact flow is functional.
+* Confirm the map search zoom behavior works.
+* Confirm the UI remains premium and does not expose internal/admin language to client users.
+
+6. Typecheck/build
+
+* Run typecheck.
+* Run production build.
+* Fix all errors and warnings that would impact production.
+* Then provide the exact final status, including any remaining limitations.
+
+Do not add new features during this pass. Only verify, harden, and fix production-readiness issues.

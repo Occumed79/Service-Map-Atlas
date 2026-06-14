@@ -1,0 +1,85 @@
+Production-readiness verification pass — I'll work through all 6 areas systematically, reading and fixing in parallel.
+Good comprehensive picture. Now I'll read the specific files I need to fix before making changes.
+I have the full picture. Here's my fix plan based on all findings:
+
+Session table → add to Drizzle schema + set createTableIfMissing: false
+Session secret → throw in production if missing
+CORS → restrict to FRONTEND_URL in production
+runtimeErrorOverlay → gate behind dev-only
+Search events → enrich with userName/userEmail from session
+.env.example → create
+Production build → run and verify
+Let me read the remaining files I need, then apply all fixes in parallel.
+Now I have everything I need. Let me apply all fixes simultaneously.
+Now I have everything. Applying all fixes in one parallel batch.
+
+Fix 1: Session table in Drizzle schema — add it so pnpm run push creates it (not the broken bundled table.sql path):
+Now applying all remaining fixes in parallel — sessions table, app.ts hardening, search enrichment, vite gate, and env example:
+Now push the schema (adds the sessions table to Drizzle) and run typecheck on both packages in parallel.
+Two types of errors: lib needs rebuild (schema changed), and query param types. Fixing both in parallel.
+Libs rebuilt. Now fix the query param type errors in providers, requests, and users routes in parallel.
+Let me re-run typecheck now that libs are rebuilt to see the current state.
+req.params.id is typed string | string[] in this Express version. Fix all 5 occurrences across 3 files in parallel with String() cast:
+Now run all typechecks and the production build simultaneously.
+Both typechecks clean. Now run the production builds for both artifacts.
+Both production builds succeeded. Let me restart the API server to pick up all the security fixes, then do a final end-to-end verification.
+All three workflows running cleanly. Here is the complete production-readiness verification report:
+
+Production-Readiness Verification — Final Status
+1. Render Deployment Readiness ✅
+Check	Status
+Replit-specific plugins (cartographer, dev-banner)	Gated behind REPL_ID !== undefined && NODE_ENV !== production
+runtimeErrorOverlay	Now also gated dev-only (fixed)
+No Replit hosting logic in backend	✅
+.env.example with all required vars	Created: DATABASE_URL, SESSION_SECRET, FRONTEND_URL, NODE_ENV
+Frontend API calls	Relative URLs via generated hooks — no hardcoded host
+Clean install sequence	pnpm install → pnpm --filter @workspace/db run push → build → start
+2. Database and Migrations ✅
+Check	Status
+Schema reproducible	Drizzle schema in lib/db/src/schema/ — single pnpm --filter @workspace/db run push
+Sessions table in schema	Fixed — added sessionTable to Drizzle schema; createTableIfMissing: false (the bundled table.sql path was broken in esbuild builds)
+Seed data is optional	No automatic seeding — no data is overwritten on startup
+Admin user creation	Documented in replit.md — must be created via direct DB insert with bcrypt hash
+3. Authentication / Security ✅
+Check	Status
+Invite bypass prevention	Token: crypto.randomBytes(32), expiry enforced, single-use (status → accepted)
+Admin routes server-side protected	All admin routes use requireAdmin middleware (401/403 before any data is read)
+Session cookies secure	secure: true, httpOnly: true, sameSite: "none" in production
+Password hashing	bcryptjs, 12 rounds — no compromise
+Hardcoded secrets	Fixed — server now throws Error at startup if SESSION_SECRET is missing in production. Dev fallback clearly labeled, never ships silently
+CORS	Fixed — restricted to FRONTEND_URL env var in production; permissive in dev
+4. Search Event Analytics ✅
+Field	Captured
+User (ID, name, email)	✅ Enriched server-side from session (fixed — was only storing userId)
+Employer name	✅ From request body or session
+Email domain	✅ Derived server-side from userEmail.split("@")[1]
+Employer account ID	✅ From session
+Selected service type	✅
+Location (city/state/country/lat/lng)	✅
+Result count	✅
+Zero-result flag	✅
+Marker click	✅
+Request conversion	✅
+Analytics access control	✅ All analytics routes behind requireAdmin
+5. Client-Facing Polish ✅
+Check	Status
+Disclaimer	Present, small, correct "absence" language
+Service request flow	Functional — open to all, no login required
+Map search zoom	Geocoding via Nominatim → map.flyTo(lat/lng, zoom: 10)
+No admin language exposed	Admin panel only reachable after login with admin/super_admin role
+6. Typecheck / Build ✅
+Frontend typecheck:  PASS — 0 errors
+API server typecheck: PASS — 0 errors (fixed 5 req.params type errors)
+API server build:    ✅ esbuild 2.3MB bundle
+Frontend build:      ✅ Vite 808KB (gzip: 247KB), 2596 modules
+Remaining Known Limitations (not production blockers)
+Email not sent — password reset tokens are logged but not emailed (no SMTP configured). Tokens can be retrieved from the DB for now; wire up nodemailer or a transactional provider (SendGrid, Resend) when ready.
+Bundle size — the 808KB frontend JS bundle could be split into chunks with build.rollupOptions.output.manualChunks for faster initial load, but is not required to ship.
+FRONTEND_URL must be set in production — CORS defaults to permissive if omitted; set it to your actual Render/production domain.
+Time worked
+5 minutes
+Work done
+84 actions
+Items read
+3,671 lines
+Code changed
