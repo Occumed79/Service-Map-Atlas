@@ -1,0 +1,1177 @@
+openapi: 3.1.0
+info:
+  title: Api
+  version: 0.1.0
+  description: Occu-Med Global Coverage Atlas API
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: auth
+    description: Authentication
+  - name: providers
+    description: Service location providers
+  - name: categories
+    description: Service categories
+  - name: requests
+    description: Service requests
+  - name: search
+    description: Search events and analytics
+  - name: analytics
+    description: Admin analytics
+  - name: users
+    description: User management
+  - name: invitations
+    description: Invitation management
+
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Login with email and password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginInput"
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthUser"
+        "401":
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: Logout current user
+      responses:
+        "200":
+          description: Logged out
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /auth/me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      summary: Get current authenticated user
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthUser"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/forgot-password:
+    post:
+      operationId: forgotPassword
+      tags: [auth]
+      summary: Request password reset
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ForgotPasswordInput"
+      responses:
+        "200":
+          description: Reset email sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /auth/reset-password:
+    post:
+      operationId: resetPassword
+      tags: [auth]
+      summary: Reset password with token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResetPasswordInput"
+      responses:
+        "200":
+          description: Password reset successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /providers:
+    get:
+      operationId: listProviders
+      tags: [providers]
+      summary: List all providers with optional filtering
+      parameters:
+        - name: serviceType
+          in: query
+          schema:
+            type: string
+        - name: lat
+          in: query
+          schema:
+            type: number
+        - name: lng
+          in: query
+          schema:
+            type: number
+        - name: radiusMiles
+          in: query
+          schema:
+            type: number
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: active
+          in: query
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: List of providers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Provider"
+    post:
+      operationId: createProvider
+      tags: [providers]
+      summary: Create a new provider (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProviderInput"
+      responses:
+        "201":
+          description: Created provider
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Provider"
+
+  /providers/{id}:
+    get:
+      operationId: getProvider
+      tags: [providers]
+      summary: Get a single provider by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Provider details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Provider"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: updateProvider
+      tags: [providers]
+      summary: Update a provider (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProviderUpdate"
+      responses:
+        "200":
+          description: Updated provider
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Provider"
+    delete:
+      operationId: deleteProvider
+      tags: [providers]
+      summary: Delete a provider (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /providers/{id}/services:
+    get:
+      operationId: getProviderServices
+      tags: [providers]
+      summary: Get services offered at a provider location
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Provider services
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ServiceCategory"
+
+  /categories:
+    get:
+      operationId: listCategories
+      tags: [categories]
+      summary: List all service categories
+      responses:
+        "200":
+          description: List of categories
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ServiceCategory"
+    post:
+      operationId: createCategory
+      tags: [categories]
+      summary: Create a service category (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ServiceCategoryInput"
+      responses:
+        "201":
+          description: Created category
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ServiceCategory"
+
+  /service-requests:
+    get:
+      operationId: listServiceRequests
+      tags: [requests]
+      summary: List service requests (admin only)
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+        - name: offset
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of service requests
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ServiceRequest"
+    post:
+      operationId: createServiceRequest
+      tags: [requests]
+      summary: Submit a new service request
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ServiceRequestInput"
+      responses:
+        "201":
+          description: Created service request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ServiceRequest"
+
+  /service-requests/{id}:
+    patch:
+      operationId: updateServiceRequest
+      tags: [requests]
+      summary: Update service request status (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ServiceRequestUpdate"
+      responses:
+        "200":
+          description: Updated service request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ServiceRequest"
+
+  /search-events:
+    post:
+      operationId: recordSearchEvent
+      tags: [search]
+      summary: Record a search event for analytics
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SearchEventInput"
+      responses:
+        "201":
+          description: Search event recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /analytics/summary:
+    get:
+      operationId: getAnalyticsSummary
+      tags: [analytics]
+      summary: Get high-level analytics summary (admin only)
+      responses:
+        "200":
+          description: Analytics summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnalyticsSummary"
+
+  /analytics/top-services:
+    get:
+      operationId: getTopServices
+      tags: [analytics]
+      summary: Get most searched service types (admin only)
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Top services
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ServiceCount"
+
+  /analytics/top-locations:
+    get:
+      operationId: getTopLocations
+      tags: [analytics]
+      summary: Get most searched geographic locations (admin only)
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Top locations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LocationCount"
+
+  /analytics/demand-heatmap:
+    get:
+      operationId: getDemandHeatmap
+      tags: [analytics]
+      summary: Get search demand heatmap data (admin only)
+      responses:
+        "200":
+          description: Heatmap data points
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/HeatmapPoint"
+
+  /analytics/employer-trends:
+    get:
+      operationId: getEmployerTrends
+      tags: [analytics]
+      summary: Get employer search trends (admin only)
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Employer trends
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EmployerTrend"
+
+  /analytics/zero-result-searches:
+    get:
+      operationId: getZeroResultSearches
+      tags: [analytics]
+      summary: Get searches that returned zero results (admin only)
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Zero result searches
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SearchEvent"
+
+  /analytics/recent-searches:
+    get:
+      operationId: getRecentSearches
+      tags: [analytics]
+      summary: Get recent search events (admin only)
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Recent searches
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SearchEvent"
+
+  /users:
+    get:
+      operationId: listUsers
+      tags: [users]
+      summary: List all users (admin only)
+      responses:
+        "200":
+          description: List of users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/User"
+
+  /users/{id}:
+    patch:
+      operationId: updateUser
+      tags: [users]
+      summary: Update user role or status (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserUpdate"
+      responses:
+        "200":
+          description: Updated user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+    delete:
+      operationId: deleteUser
+      tags: [users]
+      summary: Delete a user (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /invitations:
+    get:
+      operationId: listInvitations
+      tags: [invitations]
+      summary: List all invitations (admin only)
+      responses:
+        "200":
+          description: List of invitations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Invitation"
+    post:
+      operationId: createInvitation
+      tags: [invitations]
+      summary: Create and send an invitation (admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InvitationInput"
+      responses:
+        "201":
+          description: Invitation created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Invitation"
+
+  /invitations/{token}:
+    get:
+      operationId: getInvitation
+      tags: [invitations]
+      summary: Get invitation details by token
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Invitation details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Invitation"
+        "404":
+          description: Invitation not found or expired
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /invitations/{token}/accept:
+    post:
+      operationId: acceptInvitation
+      tags: [invitations]
+      summary: Accept an invitation and create account
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AcceptInvitationInput"
+      responses:
+        "200":
+          description: Account created and logged in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthUser"
+
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required: [status]
+
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+      required: [success]
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required: [error]
+
+    LoginInput:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+      required: [email, password]
+
+    ForgotPasswordInput:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+      required: [email]
+
+    ResetPasswordInput:
+      type: object
+      properties:
+        token:
+          type: string
+        password:
+          type: string
+          minLength: 8
+      required: [token, password]
+
+    AuthUser:
+      type: object
+      properties:
+        id:
+          type: integer
+        email:
+          type: string
+        name:
+          type: string
+        role:
+          type: string
+          enum: [super_admin, admin, client_user, read_only]
+        employerAccountId:
+          type: ["integer", "null"]
+        employerName:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, email, name, role, createdAt]
+
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        email:
+          type: string
+        name:
+          type: string
+        role:
+          type: string
+          enum: [super_admin, admin, client_user, read_only]
+        active:
+          type: boolean
+        employerAccountId:
+          type: ["integer", "null"]
+        employerName:
+          type: ["string", "null"]
+        lastLoginAt:
+          type: ["string", "null"]
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, email, name, role, active, createdAt]
+
+    UserUpdate:
+      type: object
+      properties:
+        role:
+          type: string
+          enum: [super_admin, admin, client_user, read_only]
+        active:
+          type: boolean
+        name:
+          type: string
+
+    Provider:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        address:
+          type: string
+        city:
+          type: string
+        state:
+          type: string
+        country:
+          type: string
+        postalCode:
+          type: ["string", "null"]
+        latitude:
+          type: number
+        longitude:
+          type: number
+        phone:
+          type: ["string", "null"]
+        email:
+          type: ["string", "null"]
+        website:
+          type: ["string", "null"]
+        availabilityNotes:
+          type: ["string", "null"]
+        coverageNotes:
+          type: ["string", "null"]
+        internalTags:
+          type: ["string", "null"]
+        active:
+          type: boolean
+        services:
+          type: array
+          items:
+            type: string
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, name, address, city, state, country, latitude, longitude, active, services, createdAt]
+
+    ProviderInput:
+      type: object
+      properties:
+        name:
+          type: string
+        address:
+          type: string
+        city:
+          type: string
+        state:
+          type: string
+        country:
+          type: string
+        postalCode:
+          type: string
+        latitude:
+          type: number
+        longitude:
+          type: number
+        phone:
+          type: string
+        email:
+          type: string
+        website:
+          type: string
+        availabilityNotes:
+          type: string
+        coverageNotes:
+          type: string
+        internalTags:
+          type: string
+        active:
+          type: boolean
+        serviceIds:
+          type: array
+          items:
+            type: integer
+      required: [name, address, city, state, country, latitude, longitude]
+
+    ProviderUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        address:
+          type: string
+        city:
+          type: string
+        state:
+          type: string
+        country:
+          type: string
+        postalCode:
+          type: string
+        latitude:
+          type: number
+        longitude:
+          type: number
+        phone:
+          type: string
+        email:
+          type: string
+        website:
+          type: string
+        availabilityNotes:
+          type: string
+        coverageNotes:
+          type: string
+        internalTags:
+          type: string
+        active:
+          type: boolean
+        serviceIds:
+          type: array
+          items:
+            type: integer
+
+    ServiceCategory:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        slug:
+          type: string
+        description:
+          type: ["string", "null"]
+        icon:
+          type: ["string", "null"]
+        providerCount:
+          type: integer
+      required: [id, name, slug, providerCount]
+
+    ServiceCategoryInput:
+      type: object
+      properties:
+        name:
+          type: string
+        slug:
+          type: string
+        description:
+          type: string
+        icon:
+          type: string
+      required: [name, slug]
+
+    ServiceRequest:
+      type: object
+      properties:
+        id:
+          type: integer
+        clientName:
+          type: string
+        clientEmail:
+          type: string
+        clientPhone:
+          type: ["string", "null"]
+        employerCompany:
+          type: ["string", "null"]
+        requestedService:
+          type: string
+        requestedLocation:
+          type: string
+        urgency:
+          type: string
+          enum: [low, normal, high, urgent]
+        notes:
+          type: ["string", "null"]
+        status:
+          type: string
+          enum: [pending, in_review, fulfilled, closed]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required: [id, clientName, clientEmail, requestedService, requestedLocation, urgency, status, createdAt, updatedAt]
+
+    ServiceRequestInput:
+      type: object
+      properties:
+        clientName:
+          type: string
+        clientEmail:
+          type: string
+          format: email
+        clientPhone:
+          type: string
+        employerCompany:
+          type: string
+        requestedService:
+          type: string
+        requestedLocation:
+          type: string
+        urgency:
+          type: string
+          enum: [low, normal, high, urgent]
+        notes:
+          type: string
+      required: [clientName, clientEmail, requestedService, requestedLocation, urgency]
+
+    ServiceRequestUpdate:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [pending, in_review, fulfilled, closed]
+        notes:
+          type: string
+
+    SearchEventInput:
+      type: object
+      properties:
+        searchText:
+          type: string
+        selectedServiceType:
+          type: ["string", "null"]
+        geocodedCity:
+          type: ["string", "null"]
+        geocodedState:
+          type: ["string", "null"]
+        geocodedCountry:
+          type: ["string", "null"]
+        latitude:
+          type: ["number", "null"]
+        longitude:
+          type: ["number", "null"]
+        matchingProviderCount:
+          type: integer
+        zeroResultSearch:
+          type: boolean
+        markerClicked:
+          type: boolean
+        requestSubmitted:
+          type: boolean
+        employerName:
+          type: ["string", "null"]
+        employerEmailDomain:
+          type: ["string", "null"]
+      required: [searchText, matchingProviderCount, zeroResultSearch, markerClicked, requestSubmitted]
+
+    SearchEvent:
+      type: object
+      properties:
+        id:
+          type: integer
+        searchText:
+          type: string
+        selectedServiceType:
+          type: ["string", "null"]
+        geocodedCity:
+          type: ["string", "null"]
+        geocodedState:
+          type: ["string", "null"]
+        geocodedCountry:
+          type: ["string", "null"]
+        latitude:
+          type: ["number", "null"]
+        longitude:
+          type: ["number", "null"]
+        matchingProviderCount:
+          type: integer
+        zeroResultSearch:
+          type: boolean
+        markerClicked:
+          type: boolean
+        requestSubmitted:
+          type: boolean
+        employerName:
+          type: ["string", "null"]
+        timestamp:
+          type: string
+          format: date-time
+      required: [id, searchText, matchingProviderCount, zeroResultSearch, markerClicked, requestSubmitted, timestamp]
+
+    AnalyticsSummary:
+      type: object
+      properties:
+        totalSearches:
+          type: integer
+        totalProviders:
+          type: integer
+        totalServiceRequests:
+          type: integer
+        totalUsers:
+          type: integer
+        zeroResultSearches:
+          type: integer
+        searchToRequestRate:
+          type: number
+        pendingRequests:
+          type: integer
+        activeProviders:
+          type: integer
+      required: [totalSearches, totalProviders, totalServiceRequests, totalUsers, zeroResultSearches, searchToRequestRate, pendingRequests, activeProviders]
+
+    ServiceCount:
+      type: object
+      properties:
+        serviceType:
+          type: string
+        count:
+          type: integer
+      required: [serviceType, count]
+
+    LocationCount:
+      type: object
+      properties:
+        city:
+          type: ["string", "null"]
+        state:
+          type: ["string", "null"]
+        country:
+          type: ["string", "null"]
+        count:
+          type: integer
+      required: [count]
+
+    HeatmapPoint:
+      type: object
+      properties:
+        latitude:
+          type: number
+        longitude:
+          type: number
+        intensity:
+          type: number
+      required: [latitude, longitude, intensity]
+
+    EmployerTrend:
+      type: object
+      properties:
+        employerName:
+          type: string
+        searchCount:
+          type: integer
+        topService:
+          type: ["string", "null"]
+        zeroResultCount:
+          type: integer
+      required: [employerName, searchCount, zeroResultCount]
+
+    Invitation:
+      type: object
+      properties:
+        id:
+          type: integer
+        email:
+          type: string
+        role:
+          type: string
+          enum: [super_admin, admin, client_user, read_only]
+        token:
+          type: string
+        status:
+          type: string
+          enum: [pending, accepted, expired]
+        expiresAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        invitedByName:
+          type: ["string", "null"]
+        employerName:
+          type: ["string", "null"]
+      required: [id, email, role, token, status, expiresAt, createdAt]
+
+    InvitationInput:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum: [super_admin, admin, client_user, read_only]
+        employerName:
+          type: string
+      required: [email, role]
+
+    AcceptInvitationInput:
+      type: object
+      properties:
+        name:
+          type: string
+        password:
+          type: string
+          minLength: 8
+      required: [name, password]
