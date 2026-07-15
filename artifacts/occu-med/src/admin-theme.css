@@ -1,0 +1,84 @@
+.admin-app {
+  --background: 230 40% 4%;
+  --foreground: 210 20% 98%;
+  --card: 230 40% 6%;
+  --card-foreground: 210 20% 98%;
+  --card-border: 230 30% 12%;
+  --popover: 230 40% 8%;
+  --popover-foreground: 210 20% 98%;
+  --popover-border: 230 30% 15%;
+  --primary: 185 100% 45%;
+  --primary-foreground: 230 40% 6%;
+  --secondary: 230 30% 15%;
+  --secondary-foreground: 210 20% 98%;
+  --muted: 230 30% 12%;
+  --muted-foreground: 215 20% 65%;
+  --accent: 185 100% 45%;
+  --accent-foreground: 230 40% 6%;
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 210 20% 98%;
+  --input: 230 30% 20%;
+  --ring: 185 100% 45%;
+  --border: 230 30% 12%;
+  --radius: 0.75rem;
+  min-height: 100vh;
+  color: hsl(var(--foreground));
+  background:
+    radial-gradient(circle at 84% 10%, rgba(0, 229, 255, 0.055), transparent 28%),
+    radial-gradient(circle at 18% 88%, rgba(0, 229, 255, 0.035), transparent 34%),
+    linear-gradient(145deg, #050611 0%, #080a18 48%, #060711 100%);
+}
+
+.admin-app .glass-panel {
+  background: rgba(10, 13, 29, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow:
+    0 24px 70px rgba(0, 0, 0, 0.34),
+    inset 0 1px 0 rgba(255, 255, 255, 0.035);
+  backdrop-filter: blur(26px) saturate(130%);
+  -webkit-backdrop-filter: blur(26px) saturate(130%);
+}
+
+.admin-app input,
+.admin-app textarea,
+.admin-app button,
+.admin-app [role="combobox"] {
+  color-scheme: dark;
+}
+
+.admin-app input,
+.admin-app textarea,
+.admin-app [role="combobox"] {
+  background: rgba(7, 10, 24, 0.72) !important;
+  border-color: rgba(255, 255, 255, 0.09) !important;
+  color: hsl(var(--foreground)) !important;
+}
+
+.admin-app input::placeholder,
+.admin-app textarea::placeholder {
+  color: hsl(var(--muted-foreground));
+}
+
+.admin-app table {
+  color: hsl(var(--foreground));
+}
+
+.admin-app thead {
+  background: rgba(255, 255, 255, 0.015) !important;
+}
+
+.admin-app tbody tr {
+  border-color: rgba(255, 255, 255, 0.055);
+}
+
+.admin-app tbody tr:hover {
+  background: rgba(255, 255, 255, 0.018);
+}
+
+.admin-app .atlas-modal {
+  border: 1px solid rgba(255,255,255,.09) !important;
+  background: rgba(8, 11, 26, .96) !important;
+  color: hsl(var(--foreground)) !important;
+  box-shadow: 0 30px 90px rgba(0,0,0,.52) !important;
+  backdrop-filter: blur(32px) saturate(135%);
+}
