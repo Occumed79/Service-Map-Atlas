@@ -1,0 +1,48 @@
+.atlas-brand-panel.atlas-brand-panel-with-logo {
+  min-width: 286px;
+  width: fit-content;
+  gap: 10px;
+  padding: 7px 10px;
+  border-radius: 20px;
+}
+
+.atlas-logo-surface {
+  width: 104px;
+  flex: 0 0 auto;
+  border-radius: 13px;
+  padding: 5px 8px;
+  background: #0b2941;
+  box-shadow:
+    0 10px 24px rgba(11, 41, 65, 0.22),
+    inset 0 1px 0 rgba(255,255,255,0.12);
+}
+
+.atlas-logo-artwork {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.atlas-brand-panel-with-logo h1 {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: #15374a;
+  white-space: nowrap;
+}
+
+@media (max-width: 760px) {
+  .atlas-brand-panel.atlas-brand-panel-with-logo {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .atlas-logo-surface {
+    width: 88px;
+  }
+
+  .atlas-brand-panel-with-logo h1 {
+    font-size: 14px;
+  }
+}
