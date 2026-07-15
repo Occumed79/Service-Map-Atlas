@@ -9,13 +9,14 @@ import searchRouter from "./search";
 import analyticsRouter from "./analytics";
 import usersRouter from "./users";
 import invitationsRouter from "./invitations";
+import { requireAdmin } from "../middlewares/auth";
 
 const router: IRouter = Router();
 
 router.use(healthRouter);
 router.use("/auth", authRouter);
 router.use("/coverage", coverageRouter);
-router.use("/providers", providersRouter);
+router.use("/providers", requireAdmin, providersRouter);
 router.use("/categories", categoriesRouter);
 router.use("/service-requests", requestsRouter);
 router.use("/search-events", searchRouter);
