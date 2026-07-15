@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Copy, Eye, KeyRound, Mail, Plus, RefreshCw, Shield, ShieldAlert, Trash2, UserRound } from "lucide-react";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,7 +9,6 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Copy, Eye, KeyRound, Mail, Plus, RefreshCw, Shield, ShieldAlert, Trash2, UserRound } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 export type ManagedAudience = "admin" | "client";
@@ -33,21 +33,33 @@ type CredentialHandoff = {
 };
 
 function generatePassword() {
-  const upper = "ABCDEFGHJKLMNPQRSTUVWXYZ";
-  const lower = "abcdefghijkmnopqrstuvwxyz";
-  const digits = "23456789";
-  const symbols = "!@#$%&*";
-  const all = upper + lower + digits + symbols;
-  const random = new Uint32Array(16);
-  crypto.getRandomValues(random);
-  const required = [upper[random[0] % upper.length], lower[random[1] % lower.length], digits[random[2] % digits.length], symbols[random[3] % symbols.length]];
-  const remaining = Array.from(random.slice(4), (value) => all[value % all.length]);
-  return [...required, ...remaining].sort(() => Math.random() - 0.5).join("");
+  const groups = [
+    "ABCDEFGHJKLMNPQRSTUVWXYZ",
+    "abcdefghijkmnopqrstuvwxyz",
+    "23456789",
+    "!@#$%&*",
+  ];
+  const all = groups.join("");
+  const values = new Uint32Array(16);
+  crypto.getRandomValues(values);
+  const characters = groups.map((group, index) => group[values[index] % group.length]);
+  for (let index = groups.length; index < values.length; index += 1) {
+    characters.push(all[values[index] % all.length]);
+  }
+  for (let index = characters.length - 1; index > 0; index -= 1) {
+    const swapIndex = values[index] % (index + 1);
+    [characters[index], characters[swapIndex]] = [characters[swapIndex], characters[index]];
+  }
+  return characters.join("");
 }
 
 async function readError(response: Response) {
   const payload = await response.json().catch(() => null) as { error?: string } | null;
   return payload?.error || `Request failed (${response.status})`;
+}
+
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "Unexpected error";
 }
 
 export function CredentialUserManager({ audience }: { audience: ManagedAudience }) {
@@ -56,12 +68,14 @@ export function CredentialUserManager({ audience }: { audience: ManagedAudience 
   const description = isAdminAudience
     ? "Create and manage credentials that can sign in to the separate Admin Render."
     : "Create and manage client credentials for the Global Coverage Atlas and associate each user with an employer.";
-  const queryKey = ["managed-users", audience];
+  const queryKey = ["managed-users", audience] as const;
   const queryClient = useQueryClient();
   const { toast } = useToast();
+
   const [createOpen, setCreateOpen] = useState(false);
   const [resetUser, setResetUser] = useState<ManagedUser | null>(null);
-  const [handoff, setHandoff] = useState<CredentialHandoff | null>(null);
+  const [createdHandoff, setCreatedHandoff] = useState<CredentialHandoff | null>(null);
+  const [resetHandoff, setResetHandoff] = useState<CredentialHandoff | null>(null);
   const [resetPassword, setResetPassword] = useState("");
   const [form, setForm] = useState({
     name: "",
@@ -104,11 +118,11 @@ export function CredentialUserManager({ audience }: { audience: ManagedAudience 
       return response.json() as Promise<ManagedUser>;
     },
     onSuccess: (created) => {
-      queryClient.invalidateQueries({ queryKey });
-      setHandoff({ name: created.name, email: created.email, password: form.password, portalUrl });
+      void queryClient.invalidateQueries({ queryKey });
+      setCreatedHandoff({ name: created.name, email: created.email, password: form.password, portalUrl });
       toast({ title: `${isAdminAudience ? "Admin" : "Client"} account created` });
     },
-    onError: (error) => toast({ title: "Account could not be created", description: error.message, variant: "destructive" }),
+    onError: (error) => toast({ title: "Account could not be created", description: errorMessage(error), variant: "destructive" }),
   });
 
   const updateUser = useMutation({
@@ -122,8 +136,8 @@ export function CredentialUserManager({ audience }: { audience: ManagedAudience 
       if (!response.ok) throw new Error(await readError(response));
       return response.json() as Promise<ManagedUser>;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey }),
-    onError: (error) => toast({ title: "User could not be updated", description: error.message, variant: "destructive" }),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey }),
+    onError: (error) => toast({ title: "User could not be updated", description: errorMessage(error), variant: "destructive" }),
   });
 
   const deleteUser = useMutation({
@@ -132,15 +146,15 @@ export function CredentialUserManager({ audience }: { audience: ManagedAudience 
       if (!response.ok) throw new Error(await readError(response));
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey });
+      void queryClient.invalidateQueries({ queryKey });
       toast({ title: "User deleted" });
     },
-    onError: (error) => toast({ title: "User could not be deleted", description: error.message, variant: "destructive" }),
+    onError: (error) => toast({ title: "User could not be deleted", description: errorMessage(error), variant: "destructive" }),
   });
 
   const resetCreateForm = () => {
     setForm({ name: "", email: "", password: "", employerName: "", role: isAdminAudience ? "admin" : "client_user" });
-    setHandoff(null);
+    setCreatedHandoff(null);
   };
 
   const submitCreate = () => {
@@ -160,31 +174,30 @@ export function CredentialUserManager({ audience }: { audience: ManagedAudience 
       toast({ title: "Password must be at least 8 characters", variant: "destructive" });
       return;
     }
-    updateUser.mutate({ id: resetUser.id, data: { password: resetPassword } }, {
+    const target = resetUser;
+    const password = resetPassword;
+    updateUser.mutate({ id: target.id, data: { password } }, {
       onSuccess: () => {
-        setHandoff({ name: resetUser.name, email: resetUser.email, password: resetPassword, portalUrl });
-        setResetUser(null);
+        setResetHandoff({ name: target.name, email: target.email, password, portalUrl });
         setResetPassword("");
         toast({ title: "Password reset" });
       },
     });
   };
 
-  const copyCredentials = async () => {
-    if (!handoff) return;
+  const copyCredentials = async (handoff: CredentialHandoff) => {
     await navigator.clipboard.writeText(
       `Occu-Med ${isAdminAudience ? "Atlas Administration" : "Global Coverage Atlas"}\nPortal: ${handoff.portalUrl}\nUsername: ${handoff.email}\nTemporary password: ${handoff.password}`,
     );
     toast({ title: "Credentials copied" });
   };
 
-  const emailCredentials = () => {
-    if (!handoff) return;
+  const emailCredentials = (handoff: CredentialHandoff) => {
     const subject = encodeURIComponent(`Your Occu-Med ${isAdminAudience ? "Atlas Admin" : "Coverage Atlas"} credentials`);
     const body = encodeURIComponent(
       `Hello ${handoff.name},\n\nYour Occu-Med access has been created.\n\nPortal: ${handoff.portalUrl}\nUsername: ${handoff.email}\nTemporary password: ${handoff.password}\n\nPlease store these credentials securely.`,
     );
-    window.location.href = `mailto:${encodeURIComponent(handoff.email)}?subject=${subject}&body=${body}`;
+    window.location.href = `mailto:${handoff.email}?subject=${subject}&body=${body}`;
   };
 
   const roleIcon = (role: ManagedRole) => {
@@ -202,7 +215,7 @@ export function CredentialUserManager({ audience }: { audience: ManagedAudience 
           <p className="text-sm text-muted-foreground mt-1">{description}</p>
         </div>
         <Button onClick={() => { resetCreateForm(); setCreateOpen(true); }}>
-          <Plus className="w-4 h-4 mr-2" /> Create {isAdminAudience ? "admin" : "client"} login
+          <Plus className="w-4 h-4 mr-2 admin-icon" /> Create {isAdminAudience ? "admin" : "client"} login
         </Button>
       </div>
 
@@ -251,19 +264,15 @@ export function CredentialUserManager({ audience }: { audience: ManagedAudience 
                     </Select>
                   </div>
                 </TableCell>
-                <TableCell>
-                  <Switch checked={user.active} onCheckedChange={(active) => updateUser.mutate({ id: user.id, data: { active } })} />
-                </TableCell>
-                <TableCell className="text-sm text-muted-foreground">
-                  {user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleString() : "Never"}
-                </TableCell>
+                <TableCell><Switch checked={user.active} onCheckedChange={(active) => updateUser.mutate({ id: user.id, data: { active } })} /></TableCell>
+                <TableCell className="text-sm text-muted-foreground">{user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleString() : "Never"}</TableCell>
                 <TableCell className="text-right">
                   <div className="inline-flex items-center gap-1">
-                    <Button variant="ghost" size="icon" title="Set or reset password" onClick={() => { setResetPassword(""); setResetUser(user); }}>
+                    <Button variant="ghost" size="icon" title="Set or reset password" onClick={() => { setResetHandoff(null); setResetPassword(""); setResetUser(user); }}>
                       <KeyRound className="w-4 h-4 admin-icon" />
                     </Button>
                     <Button variant="ghost" size="icon" title="Delete user" onClick={() => { if (confirm(`Delete ${user.name}?`)) deleteUser.mutate(user.id); }}>
-                      <Trash2 className="w-4 h-4" />
+                      <Trash2 className="w-4 h-4 admin-icon" />
                     </Button>
                   </div>
                 </TableCell>
@@ -281,42 +290,28 @@ export function CredentialUserManager({ audience }: { audience: ManagedAudience 
               Enter a password or generate one. It becomes the credential this user will use for the {isAdminAudience ? "Admin Panel" : "Client Atlas"}.
             </DialogDescription>
           </DialogHeader>
-
-          {handoff ? (
-            <CredentialHandoffPanel handoff={handoff} onCopy={copyCredentials} onEmail={emailCredentials} onDone={() => { setCreateOpen(false); resetCreateForm(); }} />
+          {createdHandoff ? (
+            <CredentialHandoffPanel
+              handoff={createdHandoff}
+              onCopy={() => void copyCredentials(createdHandoff)}
+              onEmail={() => emailCredentials(createdHandoff)}
+              onDone={() => { setCreateOpen(false); resetCreateForm(); }}
+            />
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
               <Field label="Full name *" value={form.name} onChange={(value) => setForm((current) => ({ ...current, name: value }))} />
               <Field label="Email / username *" type="email" value={form.email} onChange={(value) => setForm((current) => ({ ...current, email: value }))} />
-              {!isAdminAudience && (
-                <div className="md:col-span-2">
-                  <Field label="Employer / company *" value={form.employerName} onChange={(value) => setForm((current) => ({ ...current, employerName: value }))} />
-                </div>
-              )}
-              <div className="space-y-2 md:col-span-2">
-                <Label>Password *</Label>
-                <div className="flex gap-2">
-                  <Input type="text" value={form.password} onChange={(event) => setForm((current) => ({ ...current, password: event.target.value }))} placeholder="Enter or generate a password" />
-                  <Button type="button" variant="secondary" onClick={() => setForm((current) => ({ ...current, password: generatePassword() }))}>
-                    <RefreshCw className="w-4 h-4 mr-2 admin-icon" /> Generate
-                  </Button>
-                </div>
-              </div>
+              {!isAdminAudience && <div className="md:col-span-2"><Field label="Employer / company *" value={form.employerName} onChange={(value) => setForm((current) => ({ ...current, employerName: value }))} /></div>}
+              <PasswordField value={form.password} onChange={(password) => setForm((current) => ({ ...current, password }))} />
               <div className="space-y-2 md:col-span-2">
                 <Label>Role</Label>
                 <Select value={form.role} onValueChange={(role) => setForm((current) => ({ ...current, role: role as ManagedRole }))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {isAdminAudience ? (
-                      <>
-                        <SelectItem value="admin">Admin</SelectItem>
-                        <SelectItem value="super_admin">Super Admin</SelectItem>
-                      </>
+                      <><SelectItem value="admin">Admin</SelectItem><SelectItem value="super_admin">Super Admin</SelectItem></>
                     ) : (
-                      <>
-                        <SelectItem value="client_user">Client User</SelectItem>
-                        <SelectItem value="read_only">Read Only</SelectItem>
-                      </>
+                      <><SelectItem value="client_user">Client User</SelectItem><SelectItem value="read_only">Read Only</SelectItem></>
                     )}
                   </SelectContent>
                 </Select>
@@ -329,25 +324,31 @@ export function CredentialUserManager({ audience }: { audience: ManagedAudience 
         </DialogContent>
       </Dialog>
 
-      <Dialog open={Boolean(resetUser)} onOpenChange={(open) => { if (!open) { setResetUser(null); setResetPassword(""); setHandoff(null); } }}>
+      <Dialog
+        open={Boolean(resetUser)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setResetUser(null);
+            setResetPassword("");
+            setResetHandoff(null);
+          }
+        }}
+      >
         <DialogContent className="atlas-modal sm:max-w-[540px]">
           <DialogHeader>
             <DialogTitle>Set password for {resetUser?.name}</DialogTitle>
             <DialogDescription>The previous password cannot be viewed. Setting a new one immediately replaces it.</DialogDescription>
           </DialogHeader>
-          {handoff ? (
-            <CredentialHandoffPanel handoff={handoff} onCopy={copyCredentials} onEmail={emailCredentials} onDone={() => { setResetUser(null); setResetPassword(""); setHandoff(null); }} />
+          {resetHandoff ? (
+            <CredentialHandoffPanel
+              handoff={resetHandoff}
+              onCopy={() => void copyCredentials(resetHandoff)}
+              onEmail={() => emailCredentials(resetHandoff)}
+              onDone={() => { setResetUser(null); setResetPassword(""); setResetHandoff(null); }}
+            />
           ) : (
             <div className="space-y-4 mt-3">
-              <div className="space-y-2">
-                <Label>New password</Label>
-                <div className="flex gap-2">
-                  <Input type="text" value={resetPassword} onChange={(event) => setResetPassword(event.target.value)} />
-                  <Button type="button" variant="secondary" onClick={() => setResetPassword(generatePassword())}>
-                    <RefreshCw className="w-4 h-4 mr-2 admin-icon" /> Generate
-                  </Button>
-                </div>
-              </div>
+              <PasswordField value={resetPassword} onChange={setResetPassword} label="New password" />
               <Button className="w-full" onClick={submitReset} disabled={updateUser.isPending}>
                 {updateUser.isPending ? "Saving…" : "Save new password"}
               </Button>
@@ -377,11 +378,20 @@ function CredentialHandoffPanel({ handoff, onCopy, onEmail, onDone }: { handoff:
   );
 }
 
-function Field({ label, value, onChange, type = "text" }: { label: string; value: string; onChange: (value: string) => void; type?: string }) {
+function PasswordField({ value, onChange, label = "Password *" }: { value: string; onChange: (value: string) => void; label?: string }) {
   return (
-    <div className="space-y-2">
+    <div className="space-y-2 md:col-span-2">
       <Label>{label}</Label>
-      <Input type={type} value={value} onChange={(event) => onChange(event.target.value)} />
+      <div className="flex gap-2">
+        <Input type="text" value={value} onChange={(event) => onChange(event.target.value)} placeholder="Enter or generate a password" />
+        <Button type="button" variant="secondary" onClick={() => onChange(generatePassword())}>
+          <RefreshCw className="w-4 h-4 mr-2 admin-icon" /> Generate
+        </Button>
+      </div>
     </div>
   );
+}
+
+function Field({ label, value, onChange, type = "text" }: { label: string; value: string; onChange: (value: string) => void; type?: string }) {
+  return <div className="space-y-2"><Label>{label}</Label><Input type={type} value={value} onChange={(event) => onChange(event.target.value)} /></div>;
 }
