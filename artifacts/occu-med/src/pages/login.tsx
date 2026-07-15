@@ -8,8 +8,10 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useToast } from "@/hooks/use-toast";
-import { Layers3 } from "lucide-react";
+import { Activity, Layers3 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+
+const APP_MODE = import.meta.env.VITE_APP_MODE === "admin" ? "admin" : "client";
 
 const loginSchema = z.object({
   email: z.string().email("Valid email required"),
@@ -21,6 +23,7 @@ export default function Login() {
   const { toast } = useToast();
   const login = useLogin();
   const { refetch } = useAuth();
+  const isAdminService = APP_MODE === "admin";
 
   const form = useForm<z.infer<typeof loginSchema>>({
     resolver: zodResolver(loginSchema),
@@ -33,8 +36,19 @@ export default function Login() {
   const onSubmit = (data: z.infer<typeof loginSchema>) => {
     login.mutate({ data }, {
       onSuccess: async () => {
-        await refetch();
-        setLocation("/");
+        const result = await refetch();
+        const user = result.data;
+
+        if (isAdminService && user?.role !== "admin" && user?.role !== "super_admin") {
+          toast({
+            title: "Access unavailable",
+            description: "This account is not authorized for Atlas administration.",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        setLocation(isAdminService ? "/admin" : "/");
       },
       onError: () => {
         toast({
@@ -53,13 +67,17 @@ export default function Login() {
 
       <GlassPanel className="w-full max-w-md p-8 relative z-10 rounded-[28px]">
         <div className="flex flex-col items-center mb-8 text-center">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary to-accent text-white flex items-center justify-center shadow-lg shadow-primary/20 mb-4">
-            <Layers3 className="w-8 h-8" />
+          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary to-accent text-primary-foreground flex items-center justify-center shadow-lg shadow-primary/20 mb-4">
+            {isAdminService ? <Activity className="w-8 h-8" /> : <Layers3 className="w-8 h-8" />}
           </div>
           <div className="text-xs uppercase tracking-[0.2em] text-muted-foreground font-semibold mb-2">Occu-Med</div>
-          <h1 className="text-2xl font-bold tracking-tight">Global Coverage Atlas</h1>
+          <h1 className="text-2xl font-bold tracking-tight">
+            {isAdminService ? "Atlas Administration" : "Global Coverage Atlas"}
+          </h1>
           <p className="text-muted-foreground text-sm mt-2">
-            Sign in to view service coverage and coordinate requests.
+            {isAdminService
+              ? "Authorized access to provider network administration."
+              : "Sign in to view service coverage and coordinate requests."}
           </p>
         </div>
 
@@ -72,7 +90,7 @@ export default function Login() {
                 <FormItem>
                   <FormLabel>Email</FormLabel>
                   <FormControl>
-                    <Input type="email" placeholder="name@company.com" className="bg-white/60" {...field} />
+                    <Input type="email" placeholder={isAdminService ? "authorized@occu-med.com" : "name@company.com"} {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -85,14 +103,16 @@ export default function Login() {
                 <FormItem>
                   <FormLabel>Password</FormLabel>
                   <FormControl>
-                    <Input type="password" placeholder="••••••••" className="bg-white/60" {...field} />
+                    <Input type="password" placeholder="••••••••" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
             <Button type="submit" className="w-full mt-6" disabled={login.isPending}>
-              {login.isPending ? "Opening Atlas…" : "Open Coverage Atlas"}
+              {login.isPending
+                ? (isAdminService ? "Opening administration…" : "Opening Atlas…")
+                : (isAdminService ? "Open Admin Panel" : "Open Coverage Atlas")}
             </Button>
           </form>
         </Form>
