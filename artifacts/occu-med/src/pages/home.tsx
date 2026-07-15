@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { MapContainer, Marker, Popup, TileLayer, useMap } from "react-leaflet";
 import { useQuery } from "@tanstack/react-query";
 import L from "leaflet";
-import { Activity, Info, Layers3, Navigation, Search } from "lucide-react";
+import { ClipboardPlus, Info, Navigation, Search } from "lucide-react";
 import { useCreateServiceRequest, useRecordSearchEvent } from "@workspace/api-client-react";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { Input } from "@/components/ui/input";
@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { OccuMedLogo } from "@/components/occu-med-logo";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useToast } from "@/hooks/use-toast";
@@ -81,7 +82,6 @@ const SERVICE_COLORS: Record<string, string> = {
 function iconForCoverage(area: CoverageArea) {
   const primaryService = area.services[0] ?? "Specialty Services";
   const color = SERVICE_COLORS[primaryService] ?? SERVICE_COLORS["Specialty Services"];
-
   return new L.DivIcon({
     className: "coverage-marker-shell",
     html: `<span class="coverage-marker" style="--coverage-color:${color}"><span class="coverage-marker-core"></span></span>`,
@@ -93,11 +93,9 @@ function iconForCoverage(area: CoverageArea) {
 
 function MapUpdater({ center, zoom }: { center: [number, number]; zoom: number }) {
   const map = useMap();
-
   useEffect(() => {
     map.flyTo(center, zoom, { duration: 1.15 });
   }, [center, map, zoom]);
-
   return null;
 }
 
@@ -108,10 +106,7 @@ function distanceMiles(a: [number, number], b: [number, number]) {
   const dLon = toRadians(b[1] - a[1]);
   const lat1 = toRadians(a[0]);
   const lat2 = toRadians(b[0]);
-  const h =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
-
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
   return 2 * earthRadiusMiles * Math.asin(Math.sqrt(h));
 }
 
@@ -136,10 +131,7 @@ export default function Home() {
     },
   });
 
-  const totalServices = useMemo(
-    () => new Set(coverageAreas.flatMap((area) => area.services)).size,
-    [coverageAreas],
-  );
+  const totalServices = useMemo(() => new Set(coverageAreas.flatMap((area) => area.services)).size, [coverageAreas]);
 
   const handleSearch = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -153,7 +145,6 @@ export default function Home() {
       );
       const results = await response.json();
       const match = results?.[0];
-
       if (!match) {
         toast({ title: "Location not found", description: "Try a city, postal code, or full address." });
         return;
@@ -162,10 +153,7 @@ export default function Home() {
       const latitude = Number(match.lat);
       const longitude = Number(match.lon);
       const center: [number, number] = [latitude, longitude];
-      const nearbyCount = coverageAreas.filter((area) =>
-        distanceMiles(center, [area.latitude, area.longitude]) <= 75,
-      ).length;
-
+      const nearbyCount = coverageAreas.filter((area) => distanceMiles(center, [area.latitude, area.longitude]) <= 75).length;
       setMapCenter(center);
       setMapZoom(9);
       setSearchLabel(match.display_name ?? query);
@@ -236,16 +224,10 @@ export default function Home() {
                 <h3>Service coordination available</h3>
                 <p>{area.city}, {area.region}{area.country ? ` · ${area.country}` : ""}</p>
                 <div className="coverage-service-list">
-                  {area.services.slice(0, 6).map((service) => (
-                    <span key={service}>{service}</span>
-                  ))}
+                  {area.services.slice(0, 6).map((service) => <span key={service}>{service}</span>)}
                 </div>
-                <p className="coverage-popup-note">
-                  Provider identity and final availability are confirmed by Occu-Med during coordination.
-                </p>
-                <Button className="w-full atlas-popup-action" size="sm" onClick={() => openRequest(area)}>
-                  Request confirmation
-                </Button>
+                <p className="coverage-popup-note">Provider identity and final availability are confirmed by Occu-Med during coordination.</p>
+                <Button className="w-full atlas-popup-action" size="sm" onClick={() => openRequest(area)}>Request confirmation</Button>
               </div>
             </Popup>
           </Marker>
@@ -253,12 +235,9 @@ export default function Home() {
       </MapContainer>
 
       <header className="atlas-header">
-        <GlassPanel className="atlas-brand-panel">
-          <div className="atlas-brand-mark"><Layers3 /></div>
-          <div>
-            <div className="atlas-eyebrow">Occu-Med</div>
-            <h1>Global Coverage Atlas</h1>
-          </div>
+        <GlassPanel className="atlas-brand-panel atlas-brand-panel-with-logo">
+          <div className="atlas-logo-surface"><OccuMedLogo className="atlas-logo-artwork" /></div>
+          <h1>Global Coverage Atlas</h1>
         </GlassPanel>
 
         <GlassPanel className="atlas-search-panel">
@@ -270,20 +249,12 @@ export default function Home() {
               placeholder="Search any address, city, postal code, or country"
               className="atlas-search-input"
             />
-            <Button type="submit" className="atlas-search-button" aria-label="Search map">
-              <Navigation />
-            </Button>
+            <Button type="submit" className="atlas-search-button" aria-label="Search map"><Navigation /></Button>
           </form>
         </GlassPanel>
 
         <div className="atlas-filter-rail" aria-label="Service filters">
-          <button
-            type="button"
-            className={!selectedService ? "atlas-filter active" : "atlas-filter"}
-            onClick={() => setSelectedService(null)}
-          >
-            All services
-          </button>
+          <button type="button" className={!selectedService ? "atlas-filter active" : "atlas-filter"} onClick={() => setSelectedService(null)}>All services</button>
           {SERVICE_CATEGORIES.map((category) => (
             <button
               type="button"
@@ -303,23 +274,15 @@ export default function Home() {
       </GlassPanel>
 
       <Button type="button" className="atlas-request-button" onClick={() => openRequest(null)}>
-        <Activity />
-        Request service
+        <ClipboardPlus /> Request service
       </Button>
 
       <GlassPanel className="atlas-disclaimer">
         <Info />
-        <p>
-          The absence of a provider or service location within this Atlas does not necessarily indicate that Occu-Med is unable to coordinate or facilitate that service. Our network is continuously expanded and verified. Contact Occu-Med for confirmation, specialized requests, or locations not currently reflected here.
-        </p>
+        <p>The absence of a provider or service location within this Atlas does not necessarily indicate that Occu-Med is unable to coordinate or facilitate that service. Our network is continuously expanded and verified. Contact Occu-Med for confirmation, specialized requests, or locations not currently reflected here.</p>
       </GlassPanel>
 
-      <RequestServiceModal
-        isOpen={requestOpen}
-        onClose={() => setRequestOpen(false)}
-        coverage={selectedCoverage}
-        selectedService={selectedService}
-      />
+      <RequestServiceModal isOpen={requestOpen} onClose={() => setRequestOpen(false)} coverage={selectedCoverage} selectedService={selectedService} />
     </div>
   );
 }
@@ -396,9 +359,7 @@ function RequestServiceModal({
         });
         onClose();
       },
-      onError: () => {
-        toast({ title: "Submission failed", description: "Please try again or contact Occu-Med directly.", variant: "destructive" });
-      },
+      onError: () => toast({ title: "Submission failed", description: "Please try again or contact Occu-Med directly.", variant: "destructive" }),
     });
   };
 
@@ -407,34 +368,21 @@ function RequestServiceModal({
       <DialogContent className="atlas-modal sm:max-w-[620px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Request service coordination</DialogTitle>
-          <DialogDescription>
-            Occu-Med will confirm the appropriate network location and coordinate the requested service.
-          </DialogDescription>
+          <DialogDescription>Occu-Med will confirm the appropriate network location and coordinate the requested service.</DialogDescription>
         </DialogHeader>
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 mt-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <FormField control={form.control} name="clientName" render={({ field }) => (
-                <FormItem><FormLabel>Your name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
-              )} />
-              <FormField control={form.control} name="clientEmail" render={({ field }) => (
-                <FormItem><FormLabel>Email</FormLabel><FormControl><Input type="email" {...field} /></FormControl><FormMessage /></FormItem>
-              )} />
-              <FormField control={form.control} name="clientPhone" render={({ field }) => (
-                <FormItem><FormLabel>Phone</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
-              )} />
-              <FormField control={form.control} name="employerCompany" render={({ field }) => (
-                <FormItem><FormLabel>Employer</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
-              )} />
-              <FormField control={form.control} name="requestedService" render={({ field }) => (
-                <FormItem><FormLabel>Requested service</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
-              )} />
-              <FormField control={form.control} name="requestedLocation" render={({ field }) => (
-                <FormItem><FormLabel>Requested location</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
-              )} />
+              <FormField control={form.control} name="clientName" render={({ field }) => <FormItem><FormLabel>Your name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>} />
+              <FormField control={form.control} name="clientEmail" render={({ field }) => <FormItem><FormLabel>Email</FormLabel><FormControl><Input type="email" {...field} /></FormControl><FormMessage /></FormItem>} />
+              <FormField control={form.control} name="clientPhone" render={({ field }) => <FormItem><FormLabel>Phone</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>} />
+              <FormField control={form.control} name="employerCompany" render={({ field }) => <FormItem><FormLabel>Employer</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>} />
+              <FormField control={form.control} name="requestedService" render={({ field }) => <FormItem><FormLabel>Requested service</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>} />
+              <FormField control={form.control} name="requestedLocation" render={({ field }) => <FormItem><FormLabel>Requested location</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>} />
               <FormField control={form.control} name="urgency" render={({ field }) => (
-                <FormItem className="md:col-span-2"><FormLabel>Urgency</FormLabel>
+                <FormItem className="md:col-span-2">
+                  <FormLabel>Urgency</FormLabel>
                   <Select value={field.value} onValueChange={field.onChange}>
                     <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
                     <SelectContent>
@@ -443,16 +391,13 @@ function RequestServiceModal({
                       <SelectItem value="high">High</SelectItem>
                       <SelectItem value="urgent">Urgent</SelectItem>
                     </SelectContent>
-                  </Select><FormMessage />
+                  </Select>
+                  <FormMessage />
                 </FormItem>
               )} />
-              <FormField control={form.control} name="notes" render={({ field }) => (
-                <FormItem className="md:col-span-2"><FormLabel>Additional details</FormLabel><FormControl><textarea className="atlas-textarea" rows={4} {...field} /></FormControl><FormMessage /></FormItem>
-              )} />
+              <FormField control={form.control} name="notes" render={({ field }) => <FormItem className="md:col-span-2"><FormLabel>Additional details</FormLabel><FormControl><textarea className="atlas-textarea" rows={4} {...field} /></FormControl><FormMessage /></FormItem>} />
             </div>
-            <Button type="submit" className="w-full atlas-modal-submit" disabled={createRequest.isPending}>
-              {createRequest.isPending ? "Submitting…" : "Submit coordination request"}
-            </Button>
+            <Button type="submit" className="w-full atlas-modal-submit" disabled={createRequest.isPending}>{createRequest.isPending ? "Submitting…" : "Submit coordination request"}</Button>
           </form>
         </Form>
       </DialogContent>
