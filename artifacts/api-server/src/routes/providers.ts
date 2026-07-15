@@ -1,8 +1,7 @@
 import { Router } from "express";
-import { z } from "zod/v4";
+import { z, CreateProviderBody, UpdateProviderBody } from "@workspace/api-zod";
 import { db, serviceLocationsTable, serviceCategoriesTable, locationServicesTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
-import { CreateProviderBody, UpdateProviderBody } from "@workspace/api-zod";
 import { requireAdmin } from "../middlewares/auth";
 import { logger } from "../lib/logger";
 
@@ -30,7 +29,9 @@ async function createProviderRecord(data: ProviderInput) {
   }).returning();
 
   if (serviceIds && serviceIds.length > 0) {
-    await db.insert(locationServicesTable).values(serviceIds.map((categoryId) => ({ locationId: location.id, categoryId })));
+    await db.insert(locationServicesTable).values(
+      serviceIds.map((categoryId: number) => ({ locationId: location.id, categoryId })),
+    );
   }
 
   const services = await db
@@ -214,7 +215,9 @@ router.patch("/:id", requireAdmin, async (req, res) => {
     if (serviceIds !== undefined) {
       await db.delete(locationServicesTable).where(eq(locationServicesTable.locationId, id));
       if (serviceIds.length > 0) {
-        await db.insert(locationServicesTable).values(serviceIds.map((categoryId) => ({ locationId: id, categoryId })));
+        await db.insert(locationServicesTable).values(
+          serviceIds.map((categoryId: number) => ({ locationId: id, categoryId })),
+        );
       }
     }
 
