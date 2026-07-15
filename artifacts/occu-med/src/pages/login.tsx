@@ -35,11 +35,10 @@ export default function Login() {
 
   const onSubmit = (data: z.infer<typeof loginSchema>) => {
     login.mutate({ data }, {
-      onSuccess: async () => {
-        const result = await refetch();
-        const user = result.data;
+      onSuccess: async (user) => {
+        await refetch();
 
-        if (isAdminService && user?.role !== "admin" && user?.role !== "super_admin") {
+        if (isAdminService && user.role !== "admin" && user.role !== "super_admin") {
           toast({
             title: "Access unavailable",
             description: "This account is not authorized for Atlas administration.",
