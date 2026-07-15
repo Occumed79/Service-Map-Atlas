@@ -10,6 +10,7 @@ import router from "./routes";
 import { logger } from "./lib/logger";
 
 const isProd = process.env.NODE_ENV === "production";
+const appMode = process.env.APP_MODE === "admin" ? "admin" : "client";
 
 if (isProd && !process.env.SESSION_SECRET) {
   throw new Error("SESSION_SECRET environment variable is required in production");
@@ -39,9 +40,9 @@ app.use(
   }),
 );
 
-// The production deployment is designed to be same-origin: this Express web
-// service serves both the API and the built Atlas frontend. FRONTEND_URL is only
-// needed when a separate trusted frontend origin is intentionally used.
+// Each Render service is same-origin: its Express process serves both its API
+// and its compiled frontend. FRONTEND_URL is only needed for an intentionally
+// separate trusted frontend origin.
 app.use(
   cors({
     origin: isProd ? process.env.FRONTEND_URL || false : true,
@@ -52,7 +53,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 app.get("/api/health", (_req, res) => {
-  res.status(200).json({ ok: true, service: "service-map-atlas", awake: true });
+  res.status(200).json({ ok: true, service: `service-map-atlas-${appMode}`, awake: true });
 });
 
 app.head("/api/health", (_req, res) => {
@@ -62,6 +63,10 @@ app.head("/api/health", (_req, res) => {
 const PgSession = connectPgSimple(session);
 app.use(
   session({
+    // A distinct cookie name prevents a session created by the former combined
+    // deployment—or by the other Render service—from bypassing the correct
+    // client/admin credential checkpoint.
+    name: appMode === "admin" ? "occu_atlas_admin.sid" : "occu_atlas_client.sid",
     store: new PgSession({
       pool,
       createTableIfMissing: false,
