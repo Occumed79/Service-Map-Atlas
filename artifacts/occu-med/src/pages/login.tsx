@@ -33,9 +33,13 @@ export default function Login() {
 
   const onSubmit = (data: z.infer<typeof loginSchema>) => {
     login.mutate({ data }, {
-      onSuccess: () => {
+      onSuccess: (user) => {
         refetch();
-        setLocation("/admin");
+        if (user?.role === "admin" || user?.role === "super_admin") {
+          setLocation("/admin");
+        } else {
+          setLocation("/");
+        }
       },
       onError: (err) => {
         toast({

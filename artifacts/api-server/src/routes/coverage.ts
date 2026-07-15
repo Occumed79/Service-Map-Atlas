@@ -14,6 +14,7 @@ type CoverageArea = {
   latitude: number;
   longitude: number;
   services: Set<string>;
+  providerCount: number;
 };
 
 /**
@@ -73,6 +74,7 @@ router.get("/", requireAuth, async (req, res) => {
 
       if (existing) {
         for (const service of services) existing.services.add(service);
+        existing.providerCount++;
         continue;
       }
 
@@ -86,6 +88,7 @@ router.get("/", requireAuth, async (req, res) => {
         latitude: Number(location.latitude.toFixed(2)),
         longitude: Number(location.longitude.toFixed(2)),
         services: new Set(services),
+        providerCount: 1,
       });
     }
 
@@ -98,6 +101,7 @@ router.get("/", requireAuth, async (req, res) => {
       longitude: area.longitude,
       services: Array.from(area.services).sort(),
       availability: "coordination_available" as const,
+      providerCount: area.providerCount,
     }));
 
     res.json(response);

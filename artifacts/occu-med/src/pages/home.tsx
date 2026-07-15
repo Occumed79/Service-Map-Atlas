@@ -44,6 +44,7 @@ type CoverageArea = {
   longitude: number;
   services: string[];
   availability: "coordination_available";
+  providerCount: number;
 };
 
 const requestSchema = z.object({
@@ -125,7 +126,7 @@ export default function Home() {
   const { toast } = useToast();
   const recordSearch = useRecordSearchEvent();
 
-  const { data: coverageAreas = [], isLoading } = useQuery<CoverageArea[]>({
+  const { data: coverageAreas = [], isLoading, error: coverageError, refetch: refetchCoverage } = useQuery<CoverageArea[]>({
     queryKey: ["coverage-areas", selectedService],
     queryFn: async () => {
       const query = selectedService ? `?serviceType=${encodeURIComponent(selectedService)}` : "";
@@ -150,6 +151,11 @@ export default function Home() {
         `https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=1&q=${encodeURIComponent(query)}`,
         { headers: { Accept: "application/json" } },
       );
+
+      if (!response.ok) {
+        throw new Error(`Geocoding service returned ${response.status}`);
+      }
+
       const results = await response.json();
       const match = results?.[0];
 
@@ -161,9 +167,10 @@ export default function Home() {
       const latitude = Number(match.lat);
       const longitude = Number(match.lon);
       const center: [number, number] = [latitude, longitude];
-      const nearbyCount = coverageAreas.filter((area) =>
+      const nearbyAreas = coverageAreas.filter((area) =>
         distanceMiles(center, [area.latitude, area.longitude]) <= 75,
-      ).length;
+      );
+      const matchingProviderCount = nearbyAreas.reduce((sum, area) => sum + area.providerCount, 0);
 
       setMapCenter(center);
       setMapZoom(9);
@@ -178,8 +185,8 @@ export default function Home() {
           geocodedCountry: match.address?.country ?? null,
           latitude,
           longitude,
-          matchingProviderCount: nearbyCount,
-          zeroResultSearch: nearbyCount === 0,
+          matchingProviderCount,
+          zeroResultSearch: matchingProviderCount === 0,
           markerClicked: false,
           requestSubmitted: false,
         },
@@ -219,7 +226,7 @@ export default function Home() {
                     geocodedCountry: area.country,
                     latitude: area.latitude,
                     longitude: area.longitude,
-                    matchingProviderCount: 1,
+                    matchingProviderCount: area.providerCount,
                     zeroResultSearch: false,
                     markerClicked: true,
                     requestSubmitted: false,
@@ -297,8 +304,19 @@ export default function Home() {
       <GlassPanel className="atlas-summary-card">
         <div className="atlas-summary-icon"><ShieldCheck /></div>
         <div>
-          <span>{isLoading ? "Loading coverage" : searchLabel}</span>
-          <strong>{coverageAreas.length} coverage areas · {totalServices} service types</strong>
+          {coverageError ? (
+            <>
+              <span className="text-destructive">Coverage data unavailable</span>
+              <Button variant="link" size="sm" onClick={() => refetchCoverage()} className="h-auto p-0 text-xs">
+                Retry
+              </Button>
+            </>
+          ) : (
+            <>
+              <span>{isLoading ? "Loading coverage" : searchLabel}</span>
+              <strong>{coverageAreas.length} coverage areas · {totalServices} service types</strong>
+            </>
+          )}
         </div>
       </GlassPanel>
 
@@ -372,7 +390,7 @@ function RequestServiceModal({
             geocodedCountry: coverage?.country ?? null,
             latitude: coverage?.latitude ?? null,
             longitude: coverage?.longitude ?? null,
-            matchingProviderCount: coverage ? 1 : 0,
+            matchingProviderCount: coverage?.providerCount ?? 0,
             zeroResultSearch: false,
             markerClicked: Boolean(coverage),
             requestSubmitted: true,

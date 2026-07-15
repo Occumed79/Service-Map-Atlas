@@ -40,8 +40,8 @@ export default function AdminProviders() {
   const [isGeocoding, setIsGeocoding] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [serviceIds, setServiceIds] = useState<number[]>([]);
-  const { data: providers = [], isLoading } = useListProviders({ search: search || undefined });
-  const { data: categories = [] } = useListCategories();
+  const { data: providers = [], isLoading, error: providersError } = useListProviders({ search: search || undefined });
+  const { data: categories = [], error: categoriesError } = useListCategories();
   const createProvider = useCreateProvider();
   const deleteProvider = useDeleteProvider();
   const queryClient = useQueryClient();
@@ -91,10 +91,27 @@ export default function AdminProviders() {
         return;
       }
 
+      const lat = match.lat?.toString().trim();
+      const lon = match.lon?.toString().trim();
+
+      if (!lat || !lon) {
+        toast({ title: "Invalid coordinates returned", variant: "destructive" });
+        return;
+      }
+
+      const latitude = Number(lat);
+      const longitude = Number(lon);
+
+      if (!Number.isFinite(latitude) || !Number.isFinite(longitude) ||
+          latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
+        toast({ title: "Invalid coordinate values", variant: "destructive" });
+        return;
+      }
+
       setForm((current) => ({
         ...current,
-        latitude: String(match.lat),
-        longitude: String(match.lon),
+        latitude: String(latitude),
+        longitude: String(longitude),
         city: current.city || match.address?.city || match.address?.town || match.address?.village || "",
         state: current.state || match.address?.state || "",
         postalCode: current.postalCode || match.address?.postcode || "",
@@ -109,17 +126,31 @@ export default function AdminProviders() {
   };
 
   const handleCreate = () => {
-    const latitude = Number(form.latitude);
-    const longitude = Number(form.longitude);
+    const hasUserEnteredAddress = form.address.trim() || form.city.trim() || form.state.trim() || form.postalCode.trim();
+    const isDefaultCountryOnly = form.country === emptyForm.country && !hasUserEnteredAddress;
 
-    if (!form.name || !form.address || !form.city || !form.state || !form.country) {
+    if (!form.name || !form.address.trim() || !form.city.trim() || !form.state.trim() || !form.country.trim() || isDefaultCountryOnly) {
       toast({ title: "Complete the required provider and location fields", variant: "destructive" });
       return;
     }
-    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+
+    const latStr = form.latitude?.toString().trim();
+    const lonStr = form.longitude?.toString().trim();
+
+    if (!latStr || !lonStr) {
       toast({ title: "Valid coordinates are required", variant: "destructive" });
       return;
     }
+
+    const latitude = Number(latStr);
+    const longitude = Number(lonStr);
+
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude) ||
+        latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
+      toast({ title: "Valid coordinates are required", variant: "destructive" });
+      return;
+    }
+
     if (serviceIds.length === 0) {
       toast({ title: "Select at least one service", variant: "destructive" });
       return;
@@ -192,7 +223,9 @@ export default function AdminProviders() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {isLoading ? (
+            {providersError ? (
+              <TableRow><TableCell colSpan={6} className="text-center py-8 text-destructive">Failed to load providers. Please try again.</TableCell></TableRow>
+            ) : isLoading ? (
               <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Loading providers…</TableCell></TableRow>
             ) : providers.length === 0 ? (
               <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">No providers found.</TableCell></TableRow>
@@ -219,7 +252,7 @@ export default function AdminProviders() {
                   </span>
                 </TableCell>
                 <TableCell className="text-right">
-                  <Button variant="ghost" size="icon" onClick={() => handleDelete(provider.id)}>
+                  <Button variant="ghost" size="icon" onClick={() => handleDelete(provider.id)} aria-label={`Delete ${provider.name}`}>
                     <Trash2 className="w-4 h-4" />
                   </Button>
                 </TableCell>
@@ -239,48 +272,52 @@ export default function AdminProviders() {
           </DialogHeader>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
-            <Field label="Provider / clinic name *" value={form.name} onChange={(value) => updateField("name", value)} />
-            <Field label="Country *" value={form.country} onChange={(value) => updateField("country", value)} />
-            <div className="md:col-span-2"><Field label="Street address *" value={form.address} onChange={(value) => updateField("address", value)} /></div>
-            <Field label="City *" value={form.city} onChange={(value) => updateField("city", value)} />
-            <Field label="State / region *" value={form.state} onChange={(value) => updateField("state", value)} />
-            <Field label="Postal code" value={form.postalCode} onChange={(value) => updateField("postalCode", value)} />
+            <Field id="provider-name" label="Provider / clinic name *" value={form.name} onChange={(value) => updateField("name", value)} />
+            <Field id="provider-country" label="Country *" value={form.country} onChange={(value) => updateField("country", value)} />
+            <div className="md:col-span-2"><Field id="provider-address" label="Street address *" value={form.address} onChange={(value) => updateField("address", value)} /></div>
+            <Field id="provider-city" label="City *" value={form.city} onChange={(value) => updateField("city", value)} />
+            <Field id="provider-state" label="State / region *" value={form.state} onChange={(value) => updateField("state", value)} />
+            <Field id="provider-postal" label="Postal code" value={form.postalCode} onChange={(value) => updateField("postalCode", value)} />
             <div className="flex items-end">
               <Button type="button" variant="secondary" className="w-full" onClick={geocodeAddress} disabled={isGeocoding}>
                 {isGeocoding ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <MapPin className="w-4 h-4 mr-2" />}
                 Find coordinates
               </Button>
             </div>
-            <Field label="Latitude *" value={form.latitude} onChange={(value) => updateField("latitude", value)} />
-            <Field label="Longitude *" value={form.longitude} onChange={(value) => updateField("longitude", value)} />
-            <Field label="Phone" value={form.phone} onChange={(value) => updateField("phone", value)} />
-            <Field label="Email" value={form.email} onChange={(value) => updateField("email", value)} />
-            <div className="md:col-span-2"><Field label="Website" value={form.website} onChange={(value) => updateField("website", value)} /></div>
-            <div className="md:col-span-2"><Field label="Availability notes" value={form.availabilityNotes} onChange={(value) => updateField("availabilityNotes", value)} /></div>
-            <div className="md:col-span-2"><Field label="Coverage notes" value={form.coverageNotes} onChange={(value) => updateField("coverageNotes", value)} /></div>
-            <div className="md:col-span-2"><Field label="Internal tags" value={form.internalTags} onChange={(value) => updateField("internalTags", value)} /></div>
+            <Field id="provider-latitude" label="Latitude *" value={form.latitude} onChange={(value) => updateField("latitude", value)} />
+            <Field id="provider-longitude" label="Longitude *" value={form.longitude} onChange={(value) => updateField("longitude", value)} />
+            <Field id="provider-phone" label="Phone" value={form.phone} onChange={(value) => updateField("phone", value)} />
+            <Field id="provider-email" label="Email" value={form.email} onChange={(value) => updateField("email", value)} />
+            <div className="md:col-span-2"><Field id="provider-website" label="Website" value={form.website} onChange={(value) => updateField("website", value)} /></div>
+            <div className="md:col-span-2"><Field id="provider-availability" label="Availability notes" value={form.availabilityNotes} onChange={(value) => updateField("availabilityNotes", value)} /></div>
+            <div className="md:col-span-2"><Field id="provider-coverage" label="Coverage notes" value={form.coverageNotes} onChange={(value) => updateField("coverageNotes", value)} /></div>
+            <div className="md:col-span-2"><Field id="provider-tags" label="Internal tags" value={form.internalTags} onChange={(value) => updateField("internalTags", value)} /></div>
           </div>
 
           <div className="mt-5">
             <Label>Services offered *</Label>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 mt-2">
-              {categories.map((category) => (
-                <label key={category.id} className="flex items-center gap-2 rounded-xl border bg-white/55 px-3 py-2 text-sm cursor-pointer">
-                  <Checkbox
-                    checked={serviceIds.includes(category.id)}
-                    onCheckedChange={(checked) => {
-                      setServiceIds((current) => checked
-                        ? [...current, category.id]
-                        : current.filter((id) => id !== category.id));
-                    }}
-                  />
-                  {category.name}
-                </label>
-              ))}
-            </div>
+            {categoriesError ? (
+              <div className="text-destructive text-sm mt-2">Failed to load service categories. Please close and try again.</div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 mt-2">
+                {categories.map((category) => (
+                  <label key={category.id} className="flex items-center gap-2 rounded-xl border bg-white/55 px-3 py-2 text-sm cursor-pointer">
+                    <Checkbox
+                      checked={serviceIds.includes(category.id)}
+                      onCheckedChange={(checked) => {
+                        setServiceIds((current) => checked
+                          ? [...current, category.id]
+                          : current.filter((id) => id !== category.id));
+                      }}
+                    />
+                    {category.name}
+                  </label>
+                ))}
+              </div>
+            )}
           </div>
 
-          <Button className="w-full mt-6" onClick={handleCreate} disabled={createProvider.isPending}>
+          <Button className="w-full mt-6" onClick={handleCreate} disabled={createProvider.isPending || !!categoriesError}>
             {createProvider.isPending ? "Adding provider…" : "Add provider to internal network"}
           </Button>
         </DialogContent>
@@ -289,11 +326,11 @@ export default function AdminProviders() {
   );
 }
 
-function Field({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
+function Field({ label, value, onChange, id }: { label: string; value: string; onChange: (value: string) => void; id: string }) {
   return (
     <div className="space-y-2">
-      <Label>{label}</Label>
-      <Input value={value} onChange={(event) => onChange(event.target.value)} className="bg-white/65" />
+      <Label htmlFor={id}>{label}</Label>
+      <Input id={id} value={value} onChange={(event) => onChange(event.target.value)} className="bg-white/65" />
     </div>
   );
 }

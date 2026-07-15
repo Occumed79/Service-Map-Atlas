@@ -97,6 +97,10 @@ if (isProd) {
         next();
         return;
       }
+      if (!req.accepts("html")) {
+        next();
+        return;
+      }
       res.sendFile(path.join(frontendDirectory, "index.html"));
     });
   } else {

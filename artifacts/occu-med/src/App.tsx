@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -22,12 +23,17 @@ function ClientRoute({ component: Component }: { component: React.ComponentType<
   const { isAuthenticated, isLoading } = useAuth();
   const [, setLocation] = useLocation();
 
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      setLocation("/login");
+    }
+  }, [isLoading, isAuthenticated, setLocation]);
+
   if (isLoading) {
     return <div className="min-h-screen flex items-center justify-center bg-background text-foreground">Loading Atlas…</div>;
   }
 
   if (!isAuthenticated) {
-    setLocation("/login");
     return null;
   }
 
@@ -38,12 +44,17 @@ function AdminRoute({ component: Component }: { component: React.ComponentType<a
   const { isAuthenticated, isLoading, user } = useAuth();
   const [, setLocation] = useLocation();
 
+  useEffect(() => {
+    if (!isLoading && (!isAuthenticated || (user?.role !== "admin" && user?.role !== "super_admin"))) {
+      setLocation("/login");
+    }
+  }, [isLoading, isAuthenticated, user, setLocation]);
+
   if (isLoading) {
     return <div className="min-h-screen flex items-center justify-center bg-background text-foreground">Loading…</div>;
   }
 
   if (!isAuthenticated || (user?.role !== "admin" && user?.role !== "super_admin")) {
-    setLocation("/login");
     return null;
   }
 
