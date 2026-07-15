@@ -5,7 +5,6 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import NotFound from "@/pages/not-found";
 
-// Pages
 import Home from "@/pages/home";
 import Login from "@/pages/login";
 import AcceptInvite from "@/pages/accept-invite";
@@ -19,11 +18,29 @@ import { AdminLayout } from "@/components/admin-layout";
 
 const queryClient = new QueryClient();
 
+function ClientRoute({ component: Component }: { component: React.ComponentType<any> }) {
+  const { isAuthenticated, isLoading } = useAuth();
+  const [, setLocation] = useLocation();
+
+  if (isLoading) {
+    return <div className="min-h-screen flex items-center justify-center bg-background text-foreground">Loading Atlas…</div>;
+  }
+
+  if (!isAuthenticated) {
+    setLocation("/login");
+    return null;
+  }
+
+  return <Component />;
+}
+
 function AdminRoute({ component: Component }: { component: React.ComponentType<any> }) {
   const { isAuthenticated, isLoading, user } = useAuth();
   const [, setLocation] = useLocation();
 
-  if (isLoading) return <div className="min-h-screen flex items-center justify-center bg-background text-foreground">Loading...</div>;
+  if (isLoading) {
+    return <div className="min-h-screen flex items-center justify-center bg-background text-foreground">Loading…</div>;
+  }
 
   if (!isAuthenticated || (user?.role !== "admin" && user?.role !== "super_admin")) {
     setLocation("/login");
@@ -40,18 +57,17 @@ function AdminRoute({ component: Component }: { component: React.ComponentType<a
 function Router() {
   return (
     <Switch>
-      <Route path="/" component={Home} />
+      <Route path="/" component={() => <ClientRoute component={Home} />} />
       <Route path="/login" component={Login} />
       <Route path="/accept-invite/:token" component={AcceptInvite} />
-      
-      {/* Admin Routes */}
+
       <Route path="/admin" component={() => <AdminRoute component={AdminDashboard} />} />
       <Route path="/admin/providers" component={() => <AdminRoute component={AdminProviders} />} />
       <Route path="/admin/requests" component={() => <AdminRoute component={AdminRequests} />} />
       <Route path="/admin/analytics" component={() => <AdminRoute component={AdminAnalytics} />} />
       <Route path="/admin/users" component={() => <AdminRoute component={AdminUsers} />} />
       <Route path="/admin/invitations" component={() => <AdminRoute component={AdminInvitations} />} />
-      
+
       <Route component={NotFound} />
     </Switch>
   );
@@ -63,7 +79,7 @@ function App() {
       <AuthProvider>
         <TooltipProvider>
           <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-            <div className="dark text-foreground bg-background min-h-screen">
+            <div className="text-foreground bg-background min-h-screen">
               <Router />
             </div>
           </WouterRouter>
