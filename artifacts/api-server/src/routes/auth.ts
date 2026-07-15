@@ -1,13 +1,31 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
-import { db, usersTable, invitationsTable, passwordResetTokensTable } from "@workspace/db";
+import {
+  db,
+  usersTable,
+  invitationsTable,
+  passwordResetTokensTable,
+  employerAccountsTable,
+} from "@workspace/db";
 import { eq, and, gt } from "drizzle-orm";
 import { LoginBody, ForgotPasswordBody, ResetPasswordBody } from "@workspace/api-zod";
 import { requireAuth } from "../middlewares/auth";
 import { logger } from "../lib/logger";
 
 const router = Router();
+
+async function getEmployerName(employerAccountId: number | null) {
+  if (!employerAccountId) return null;
+
+  const rows = await db
+    .select({ name: employerAccountsTable.name })
+    .from(employerAccountsTable)
+    .where(eq(employerAccountsTable.id, employerAccountId))
+    .limit(1);
+
+  return rows[0]?.name ?? null;
+}
 
 router.post("/login", async (req, res) => {
   const parsed = LoginBody.safeParse(req.body);
@@ -28,20 +46,24 @@ router.post("/login", async (req, res) => {
       res.status(401).json({ error: "Invalid credentials" });
       return;
     }
+
+    const employerName = await getEmployerName(user.employerAccountId ?? null);
+
     await db.update(usersTable).set({ lastLoginAt: new Date() }).where(eq(usersTable.id, user.id));
     req.session.userId = user.id;
     req.session.userRole = user.role;
     req.session.userName = user.name;
     req.session.userEmail = user.email;
     req.session.employerAccountId = user.employerAccountId ?? null;
-    req.session.employerName = null;
+    req.session.employerName = employerName;
+
     res.json({
       id: user.id,
       email: user.email,
       name: user.name,
       role: user.role,
       employerAccountId: user.employerAccountId ?? null,
-      employerName: null,
+      employerName,
       createdAt: user.createdAt.toISOString(),
     });
   } catch (err) {
@@ -68,13 +90,20 @@ router.get("/me", requireAuth, async (req, res) => {
       res.status(401).json({ error: "Not authenticated" });
       return;
     }
+
+    const employerName = await getEmployerName(user.employerAccountId ?? null);
+    req.session.userName = user.name;
+    req.session.userEmail = user.email;
+    req.session.employerAccountId = user.employerAccountId ?? null;
+    req.session.employerName = employerName;
+
     res.json({
       id: user.id,
       email: user.email,
       name: user.name,
       role: user.role,
       employerAccountId: user.employerAccountId ?? null,
-      employerName: null,
+      employerName,
       createdAt: user.createdAt.toISOString(),
     });
   } catch (err) {
@@ -93,9 +122,9 @@ router.post("/forgot-password", async (req, res) => {
     const users = await db.select().from(usersTable).where(eq(usersTable.email, parsed.data.email.toLowerCase())).limit(1);
     if (users[0]) {
       const token = crypto.randomBytes(32).toString("hex");
-      const expiresAt = new Date(Date.now() + 1000 * 60 * 60); // 1 hour
+      const expiresAt = new Date(Date.now() + 1000 * 60 * 60);
       await db.insert(passwordResetTokensTable).values({ userId: users[0].id, token, expiresAt });
-      logger.info({ email: parsed.data.email, token }, "Password reset token created");
+      logger.info({ email: parsed.data.email }, "Password reset token created");
     }
     res.json({ success: true, message: "If that email exists, a reset link has been sent" });
   } catch (err) {
