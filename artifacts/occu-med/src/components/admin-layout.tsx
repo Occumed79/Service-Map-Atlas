@@ -32,7 +32,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen bg-background flex flex-col md:flex-row">
       <aside className="w-full md:w-64 p-4 flex flex-col gap-4 z-10 shrink-0 border-r border-slate-200/70 bg-white/38 backdrop-blur-2xl">
         <div className="px-3 pt-2 pb-3 text-center">
-          <OccuMedLogo className="w-full max-w-[210px] mx-auto h-auto [filter:drop-shadow(0_0_1px_rgba(88,67,34,0.95))_drop-shadow(0_0_5px_rgba(255,250,225,1))_drop-shadow(0_0_14px_rgba(232,208,150,0.9))]" />
+          <OccuMedLogo className="w-full max-w-[210px] mx-auto h-auto [filter:drop-shadow(0_0_1px_rgba(11,41,65,1))_drop-shadow(0_0_5px_rgba(31,78,121,0.72))_drop-shadow(0_0_15px_rgba(67,112,158,0.48))]" />
           <p className="mt-3 px-1 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Atlas Administration</p>
         </div>
 
