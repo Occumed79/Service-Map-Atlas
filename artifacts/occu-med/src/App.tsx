@@ -13,6 +13,7 @@ import AdminProviders from "@/pages/admin/providers";
 import AdminRequests from "@/pages/admin/requests";
 import AdminAnalytics from "@/pages/admin/analytics";
 import AdminUsers from "@/pages/admin/users";
+import AdminClientUsers from "@/pages/admin/client-users";
 import AdminInvitations from "@/pages/admin/invitations";
 import { AdminLayout } from "@/components/admin-layout";
 
@@ -112,6 +113,7 @@ function AdminRouter() {
       <Route path="/admin/requests" component={() => <AdminRoute component={AdminRequests} />} />
       <Route path="/admin/analytics" component={() => <AdminRoute component={AdminAnalytics} />} />
       <Route path="/admin/users" component={() => <AdminRoute component={AdminUsers} />} />
+      <Route path="/admin/client-users" component={() => <AdminRoute component={AdminClientUsers} />} />
       <Route path="/admin/invitations" component={() => <AdminRoute component={AdminInvitations} />} />
       <Route component={NotFound} />
     </Switch>
@@ -120,7 +122,7 @@ function AdminRouter() {
 
 function App() {
   const shellClass = APP_MODE === "admin"
-    ? "admin-app dark text-foreground bg-background min-h-screen"
+    ? "admin-app text-foreground bg-background min-h-screen"
     : "client-app text-foreground bg-background min-h-screen";
 
   return (
