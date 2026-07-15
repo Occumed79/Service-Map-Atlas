@@ -1,6 +1,6 @@
 import { useGetAnalyticsSummary } from "@workspace/api-client-react";
 import { GlassPanel } from "@/components/ui/glass-panel";
-import { Activity, Users, MapPin, ClipboardList, Search, AlertCircle } from "lucide-react";
+import { BarChart3, Users, MapPin, ClipboardList, Search, CircleAlert, Gauge } from "lucide-react";
 
 export default function AdminDashboard() {
   const { data: summary, isLoading } = useGetAnalyticsSummary();
@@ -10,12 +10,12 @@ export default function AdminDashboard() {
   }
 
   const statCards = [
-    { label: "Total Providers", value: summary?.totalProviders || 0, icon: MapPin, color: "text-blue-400" },
-    { label: "Pending Requests", value: summary?.pendingRequests || 0, icon: ClipboardList, color: "text-amber-400" },
-    { label: "Total Searches", value: summary?.totalSearches || 0, icon: Search, color: "text-teal-400" },
-    { label: "Zero Result Searches", value: summary?.zeroResultSearches || 0, icon: AlertCircle, color: "text-red-400" },
-    { label: "Total Users", value: summary?.totalUsers || 0, icon: Users, color: "text-indigo-400" },
-    { label: "Conversion Rate", value: `${((summary?.searchToRequestRate || 0) * 100).toFixed(1)}%`, icon: Activity, color: "text-emerald-400" },
+    { label: "Total Providers", value: summary?.totalProviders || 0, icon: MapPin },
+    { label: "Pending Requests", value: summary?.pendingRequests || 0, icon: ClipboardList },
+    { label: "Total Searches", value: summary?.totalSearches || 0, icon: Search },
+    { label: "Zero Result Searches", value: summary?.zeroResultSearches || 0, icon: CircleAlert },
+    { label: "Total Users", value: summary?.totalUsers || 0, icon: Users },
+    { label: "Conversion Rate", value: `${((summary?.searchToRequestRate || 0) * 100).toFixed(1)}%`, icon: Gauge },
   ];
 
   return (
@@ -25,11 +25,11 @@ export default function AdminDashboard() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {statCards.map((stat, i) => {
+        {statCards.map((stat) => {
           const Icon = stat.icon;
           return (
-            <GlassPanel key={i} className="p-6 flex items-center gap-4">
-              <div className={`p-4 rounded-xl bg-card border border-white/5 shadow-inner ${stat.color}`}>
+            <GlassPanel key={stat.label} className="p-6 flex items-center gap-4">
+              <div className="p-4 rounded-xl bg-[#e4eef4] border border-white/80 shadow-inner admin-icon">
                 <Icon className="w-8 h-8" />
               </div>
               <div>
@@ -40,10 +40,10 @@ export default function AdminDashboard() {
           );
         })}
       </div>
-      
+
       <GlassPanel className="p-8 mt-8 min-h-[400px] flex items-center justify-center flex-col text-muted-foreground">
-        <Activity className="w-16 h-16 mb-4 opacity-20" />
-        <p className="text-lg">Detailed visualization panels available in Analytics tab.</p>
+        <BarChart3 className="w-16 h-16 mb-4 opacity-25 admin-icon" />
+        <p className="text-lg">Detailed visualization panels available in Analytics.</p>
       </GlassPanel>
     </div>
   );
