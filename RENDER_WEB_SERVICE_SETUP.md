@@ -3,7 +3,7 @@
 Service Map Atlas uses **two separate Render Web Services** connected to the same Neon database.
 
 - **Client Atlas service:** client credential checkpoint, worldwide service coverage map, tracked searches, and service requests.
-- **Atlas Admin service:** the dark luminous administration panel for providers, requests, analytics, users, and invitations.
+- **Atlas Admin service:** the light frosted-glass administration portal for coverage, internal providers, requests, analytics, admin users, client users, and invitations.
 
 Neither service offers a user-facing choice between client and admin modes. Each Render URL opens only its intended experience.
 
@@ -58,26 +58,29 @@ Environment variables:
 - `NODE_ENV=production`
 - `APP_MODE=admin`
 - `VITE_APP_MODE=admin`
+- `VITE_CLIENT_APP_URL=https://service-map-atlas-final.onrender.com`
 - `DATABASE_URL=<the exact same Service-Map-Atlas Neon pooled connection string>`
 - `SESSION_SECRET=<a different admin-service-specific long random value>`
+
+`VITE_CLIENT_APP_URL` is embedded during the Admin Render build. It ensures credentials generated in **Client Users** contain the Client Atlas URL rather than the Admin URL. Redeploy the Admin service after adding or changing it.
 
 Behavior:
 
 - `/` opens the separate Atlas Administration login.
-- Successful authorized login opens the dark luminous admin panel.
+- Successful authorized login opens the light frosted-glass admin portal.
 - Only `admin` and `super_admin` accounts may enter.
-- The admin service exposes provider, request, analytics, user, and invitation management APIs.
+- The admin service exposes client-facing service coverage, internal provider records, Excel provider imports, requests, analytics, admin-user credentials, client-user credentials, and invitations.
 - The client map and its client-facing navigation are not exposed by the admin router.
 
 ## Neon connection
 
 Both Render services intentionally connect to the same Neon database so that:
 
-- providers entered in Atlas Admin become sanitized coverage areas in the Client Atlas;
+- providers entered or imported in Atlas Admin become sanitized coverage areas in the Client Atlas;
 - client searches appear in Atlas Admin analytics;
 - client service requests appear in Atlas Admin requests;
-- invitations created in Atlas Admin create client credentials for the Client Atlas;
-- employer accounts connect client activity to the correct company.
+- client users are associated with employer accounts for demand attribution;
+- admin and client passwords are stored only as secure hashes and can be set or reset from their respective management tabs.
 
 ## Important
 
