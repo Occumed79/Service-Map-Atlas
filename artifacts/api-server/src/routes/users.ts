@@ -1,6 +1,6 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
-import { z } from "zod/v4";
+import { z } from "@workspace/api-zod";
 import { db, usersTable, employerAccountsTable } from "@workspace/db";
 import { eq, sql } from "drizzle-orm";
 import { requireAdmin } from "../middlewares/auth";
