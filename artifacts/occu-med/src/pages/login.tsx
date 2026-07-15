@@ -8,8 +8,8 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { useToast } from "@/hooks/use-toast";
-import { Activity, Layers3 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { OccuMedLogo } from "@/components/occu-med-logo";
 
 const APP_MODE = import.meta.env.VITE_APP_MODE === "admin" ? "admin" : "client";
 
@@ -27,10 +27,7 @@ export default function Login() {
 
   const form = useForm<z.infer<typeof loginSchema>>({
     resolver: zodResolver(loginSchema),
-    defaultValues: {
-      email: "",
-      password: "",
-    },
+    defaultValues: { email: "", password: "" },
   });
 
   const onSubmit = (data: z.infer<typeof loginSchema>) => {
@@ -50,26 +47,21 @@ export default function Login() {
         setLocation(isAdminService ? "/admin" : "/");
       },
       onError: () => {
-        toast({
-          title: "Login failed",
-          description: "Invalid credentials.",
-          variant: "destructive",
-        });
+        toast({ title: "Login failed", description: "Invalid credentials.", variant: "destructive" });
       },
     });
   };
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-background relative overflow-hidden">
-      <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary/20 rounded-full blur-[120px] pointer-events-none" />
-      <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-accent/20 rounded-full blur-[120px] pointer-events-none" />
+      <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-sky-200/35 rounded-full blur-[120px] pointer-events-none" />
+      <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-blue-100/45 rounded-full blur-[120px] pointer-events-none" />
 
       <GlassPanel className="w-full max-w-md p-8 relative z-10 rounded-[28px]">
         <div className="flex flex-col items-center mb-8 text-center">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary to-accent text-primary-foreground flex items-center justify-center shadow-lg shadow-primary/20 mb-4">
-            {isAdminService ? <Activity className="w-8 h-8" /> : <Layers3 className="w-8 h-8" />}
+          <div className="w-48 rounded-2xl bg-[#0b2941] px-4 py-3 shadow-xl shadow-slate-500/15 ring-1 ring-white/90 mb-5">
+            <OccuMedLogo className="w-full h-auto" />
           </div>
-          <div className="text-xs uppercase tracking-[0.2em] text-muted-foreground font-semibold mb-2">Occu-Med</div>
           <h1 className="text-2xl font-bold tracking-tight">
             {isAdminService ? "Atlas Administration" : "Global Coverage Atlas"}
           </h1>
@@ -101,9 +93,7 @@ export default function Login() {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Password</FormLabel>
-                  <FormControl>
-                    <Input type="password" placeholder="••••••••" {...field} />
-                  </FormControl>
+                  <FormControl><Input type="password" placeholder="••••••••" {...field} /></FormControl>
                   <FormMessage />
                 </FormItem>
               )}
