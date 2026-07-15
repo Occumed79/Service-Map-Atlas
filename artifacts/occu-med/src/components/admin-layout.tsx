@@ -1,15 +1,16 @@
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/lib/auth";
 import { useLogout } from "@workspace/api-client-react";
-import { Activity, LayoutDashboard, MapPin, ClipboardList, BarChart3, Users, Send, LogOut } from "lucide-react";
-import { GlassPanel } from "@/components/ui/glass-panel";
+import { LayoutDashboard, MapPin, ClipboardList, BarChart3, UserCog, Users, Send, LogOut } from "lucide-react";
+import { OccuMedLogo } from "@/components/occu-med-logo";
 
 const navItems = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/admin/providers", label: "Providers", icon: MapPin },
+  { href: "/admin/providers", label: "Coverage & Providers", icon: MapPin },
   { href: "/admin/requests", label: "Requests", icon: ClipboardList },
   { href: "/admin/analytics", label: "Analytics", icon: BarChart3 },
-  { href: "/admin/users", label: "Users", icon: Users },
+  { href: "/admin/users", label: "Admin Users", icon: UserCog },
+  { href: "/admin/client-users", label: "Client Users", icon: Users },
   { href: "/admin/invitations", label: "Invitations", icon: Send },
 ];
 
@@ -23,66 +24,60 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
       onSuccess: () => {
         setLocation("/login");
         window.location.reload();
-      }
+      },
     });
   };
 
   return (
     <div className="min-h-screen bg-background flex flex-col md:flex-row">
-      {/* Sidebar */}
-      <div className="w-full md:w-64 p-4 flex flex-col gap-4 z-10 shrink-0 border-r border-white/5 bg-card/20 backdrop-blur-xl">
-        <Link href="/">
-          <div className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-white/5 rounded-lg transition-colors">
-            <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center">
-              <Activity className="w-5 h-5 text-primary" />
-            </div>
-            <span className="font-bold text-lg tracking-tight">Atlas Admin</span>
+      <aside className="w-full md:w-64 p-4 flex flex-col gap-4 z-10 shrink-0 border-r border-slate-200/70 bg-white/38 backdrop-blur-2xl">
+        <div className="px-3 pt-2 pb-3">
+          <div className="rounded-2xl bg-[#0b2941] px-3 py-2 shadow-lg shadow-slate-500/10 ring-1 ring-white/70">
+            <OccuMedLogo className="w-full h-auto" />
           </div>
-        </Link>
+          <p className="mt-2 px-1 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Atlas Administration</p>
+        </div>
 
-        <nav className="flex-1 flex flex-col gap-1 mt-4">
+        <nav className="flex-1 flex flex-col gap-1">
           {navItems.map((item) => {
             const isActive = location === item.href;
             const Icon = item.icon;
-            
+
             return (
               <Link key={item.href} href={item.href}>
-                <div className={`flex items-center gap-3 px-4 py-3 rounded-lg cursor-pointer transition-all ${
-                  isActive 
-                    ? "bg-primary/20 text-primary border border-primary/30" 
-                    : "text-muted-foreground hover:bg-white/5 hover:text-foreground border border-transparent"
+                <div className={`flex items-center gap-3 px-4 py-3 rounded-xl cursor-pointer transition-all border ${
+                  isActive
+                    ? "bg-[#d8e7f1] text-[#173b5c] border-[#9ebed2] shadow-sm"
+                    : "text-slate-600 hover:bg-white/70 hover:text-[#173b5c] border-transparent"
                 }`}>
-                  <Icon className="w-5 h-5" />
-                  <span className="font-medium">{item.label}</span>
+                  <Icon className="w-5 h-5 admin-icon" />
+                  <span className="font-medium text-sm">{item.label}</span>
                 </div>
               </Link>
             );
           })}
         </nav>
 
-        <div className="mt-auto pt-4 border-t border-white/10">
+        <div className="mt-auto pt-4 border-t border-slate-200/80">
           <div className="px-4 py-3 mb-2">
-            <p className="text-sm font-medium text-foreground">{user?.name}</p>
-            <p className="text-xs text-muted-foreground">{user?.email}</p>
+            <p className="text-sm font-semibold text-foreground">{user?.name}</p>
+            <p className="text-xs text-muted-foreground break-all">{user?.email}</p>
           </div>
-          <button 
+          <button
             onClick={handleLogout}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-destructive hover:bg-destructive/10 transition-colors"
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-destructive hover:bg-destructive/10 transition-colors"
           >
             <LogOut className="w-5 h-5" />
             <span className="font-medium">Sign Out</span>
           </button>
         </div>
-      </div>
+      </aside>
 
-      {/* Main Content */}
-      <div className="flex-1 p-4 md:p-8 overflow-y-auto relative h-screen">
-        <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-primary/5 rounded-full blur-[150px] pointer-events-none" />
-        <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-accent/5 rounded-full blur-[150px] pointer-events-none" />
-        <div className="relative z-10 max-w-7xl mx-auto">
-          {children}
-        </div>
-      </div>
+      <main className="flex-1 p-4 md:p-8 overflow-y-auto relative h-screen">
+        <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-sky-200/20 rounded-full blur-[150px] pointer-events-none" />
+        <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-blue-100/25 rounded-full blur-[150px] pointer-events-none" />
+        <div className="relative z-10 max-w-7xl mx-auto">{children}</div>
+      </main>
     </div>
   );
 }
