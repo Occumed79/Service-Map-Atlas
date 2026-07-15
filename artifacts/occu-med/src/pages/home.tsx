@@ -1,238 +1,50 @@
-import { useState, useEffect } from "react";
-import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
+import { useEffect, useMemo, useState } from "react";
+import { MapContainer, Marker, Popup, TileLayer, useMap } from "react-leaflet";
+import { useQuery } from "@tanstack/react-query";
 import L from "leaflet";
-import { motion, AnimatePresence } from "framer-motion";
-import { Search, MapPin, Navigation, Info, Phone, Activity } from "lucide-react";
-import { useListProviders, useRecordSearchEvent, useCreateServiceRequest } from "@workspace/api-client-react";
+import { Activity, Info, Layers3, Navigation, Search, ShieldCheck } from "lucide-react";
+import { useCreateServiceRequest, useRecordSearchEvent } from "@workspace/api-client-react";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import * as z from "zod";
 
 const SERVICE_CATEGORIES = [
-  "Dental", "Chest X-Ray", "B-Reader", "Spirometry", "Pulmonary Function Testing",
-  "Drug Screen", "DOT Physical", "Audiogram", "EKG", "Treadmill Stress Test",
-  "Laboratory Services", "Titers", "Vaccinations", "Physical Examination",
-  "Vision Testing", "Occupational Medicine", "Specialty Services"
+  "Dental",
+  "Chest X-Ray",
+  "B-Reader",
+  "Spirometry",
+  "Pulmonary Function Testing",
+  "Drug Screen",
+  "DOT Physical",
+  "Audiogram",
+  "EKG",
+  "Treadmill Stress Test",
+  "Laboratory Services",
+  "Titers",
+  "Vaccinations",
+  "Physical Examination",
+  "Vision Testing",
+  "Occupational Medicine",
+  "Specialty Services",
 ];
 
-const customIcon = new L.DivIcon({
-  className: "glowing-marker-container",
-  html: `<div class="glowing-marker"></div>`,
-  iconSize: [20, 20],
-  iconAnchor: [10, 10],
-});
-
-
-function MapUpdater({ center, zoom }: { center: [number, number]; zoom: number }) {
-  const map = useMap();
-  useEffect(() => {
-    map.flyTo(center, zoom);
-  }, [center, zoom, map]);
-  return null;
-}
-
-export default function Home() {
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedService, setSelectedService] = useState<string | null>(null);
-  const [mapCenter, setMapCenter] = useState<[number, number]>([39.8283, -98.5795]); // US Center
-  const [mapZoom, setMapZoom] = useState(4);
-  const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
-  const [selectedProvider, setSelectedProvider] = useState<any>(null);
-
-  const { data: providers = [] } = useListProviders({
-    serviceType: selectedService || undefined,
-    search: searchQuery || undefined,
-    active: true
-  });
-
-  const recordSearch = useRecordSearchEvent();
-
-  const handleSearch = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!searchQuery) return;
-
-    try {
-      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}`);
-      const data = await res.json();
-      if (data && data.length > 0) {
-        const lat = parseFloat(data[0].lat);
-        const lon = parseFloat(data[0].lon);
-        setMapCenter([lat, lon]);
-        setMapZoom(10);
-        
-        recordSearch.mutate({
-          data: {
-            searchText: searchQuery,
-            selectedServiceType: selectedService,
-            latitude: lat,
-            longitude: lon,
-            matchingProviderCount: providers.length,
-            zeroResultSearch: providers.length === 0,
-            markerClicked: false,
-            requestSubmitted: false
-          }
-        });
-      }
-    } catch (error) {
-      console.error("Geocoding failed", error);
-    }
-  };
-
-  return (
-    <div className="relative w-full h-screen overflow-hidden bg-background">
-      <MapContainer
-        center={mapCenter}
-        zoom={mapZoom}
-        className="w-full h-full z-0"
-        zoomControl={false}
-      >
-        <TileLayer
-          url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
-        />
-        <MapUpdater center={mapCenter} zoom={mapZoom} />
-        
-        {providers.map((provider) => (
-          <Marker 
-            key={provider.id} 
-            position={[provider.latitude, provider.longitude]} 
-            icon={customIcon}
-            eventHandlers={{
-              click: () => {
-                recordSearch.mutate({
-                  data: {
-                    searchText: searchQuery || "map_click",
-                    selectedServiceType: selectedService,
-                    matchingProviderCount: providers.length,
-                    zeroResultSearch: false,
-                    markerClicked: true,
-                    requestSubmitted: false
-                  }
-                });
-              }
-            }}
-          >
-            <Popup className="premium-popup">
-              <div className="p-2">
-                <h3 className="font-bold text-lg mb-1">{provider.name}</h3>
-                <p className="text-sm text-muted-foreground mb-3">{provider.city}, {provider.state}</p>
-                
-                <div className="space-y-2 mb-4">
-                  <div className="flex flex-wrap gap-1">
-                    {provider.services?.slice(0, 3).map((s: string) => (
-                      <span key={s} className="text-[10px] bg-primary/20 text-primary px-2 py-1 rounded-full">
-                        {s}
-                      </span>
-                    ))}
-                    {(provider.services?.length || 0) > 3 && (
-                      <span className="text-[10px] bg-secondary text-secondary-foreground px-2 py-1 rounded-full">
-                        +{(provider.services?.length || 0) - 3} more
-                      </span>
-                    )}
-                  </div>
-                </div>
-                
-                <Button 
-                  className="w-full" 
-                  size="sm"
-                  onClick={() => {
-                    setSelectedProvider(provider);
-                    setIsRequestModalOpen(true);
-                  }}
-                >
-                  Request Service
-                </Button>
-              </div>
-            </Popup>
-          </Marker>
-        ))}
-      </MapContainer>
-
-      {/* Floating Header / Search */}
-      <div className="absolute top-0 left-0 right-0 z-10 p-6 pointer-events-none flex flex-col items-center gap-4">
-        <GlassPanel className="w-full max-w-2xl p-2 pointer-events-auto flex items-center gap-2">
-          <form onSubmit={handleSearch} className="flex-1 flex items-center relative">
-            <Search className="absolute left-3 w-5 h-5 text-muted-foreground" />
-            <Input 
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search locations, zip codes, or coordinates..." 
-              className="pl-10 border-none bg-transparent focus-visible:ring-0 text-lg"
-            />
-            <Button type="submit" variant="ghost" size="icon" className="absolute right-1">
-              <Navigation className="w-5 h-5 text-primary" />
-            </Button>
-          </form>
-        </GlassPanel>
-
-        {/* Filter Chips */}
-        <div className="w-full max-w-5xl overflow-x-auto pb-4 pointer-events-auto hide-scrollbar">
-          <div className="flex items-center gap-2 px-4">
-            {SERVICE_CATEGORIES.map(category => (
-              <button
-                key={category}
-                onClick={() => setSelectedService(selectedService === category ? null : category)}
-                className={`whitespace-nowrap px-4 py-2 rounded-full text-sm font-medium transition-all duration-300 border backdrop-blur-md ${
-                  selectedService === category 
-                    ? "bg-primary text-primary-foreground border-primary shadow-[0_0_15px_rgba(var(--primary),0.5)]" 
-                    : "bg-card/40 text-foreground border-white/10 hover:bg-card/60"
-                }`}
-              >
-                {category}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Floating Action Buttons */}
-      <div className="absolute top-1/2 right-6 -translate-y-1/2 flex flex-col gap-4 z-10 pointer-events-auto">
-        <Button 
-          size="lg" 
-          className="rounded-full w-14 h-14 shadow-lg shadow-primary/20"
-          onClick={() => {
-            setSelectedProvider(null);
-            setIsRequestModalOpen(true);
-          }}
-          title="Request Service"
-        >
-          <Activity className="w-6 h-6" />
-        </Button>
-        <Button 
-          variant="secondary"
-          size="lg" 
-          className="rounded-full w-14 h-14 glass-panel border-none"
-          title="Contact Support"
-        >
-          <Phone className="w-6 h-6" />
-        </Button>
-      </div>
-
-      {/* Disclaimer Panel */}
-      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-10 pointer-events-auto w-full max-w-4xl px-4">
-        <GlassPanel className="p-4 flex items-start gap-3 text-xs text-muted-foreground">
-          <Info className="w-5 h-5 shrink-0 text-primary mt-0.5" />
-          <p>
-            The absence of a provider or service location within this portal does not necessarily indicate that Occu-Med is unable to coordinate or facilitate that service. While we continuously expand and update our provider network database, some providers, locations, or services may not yet be reflected within the platform. Clients are encouraged to contact Occu-Med directly for assistance.
-          </p>
-        </GlassPanel>
-      </div>
-
-      <RequestServiceModal 
-        isOpen={isRequestModalOpen} 
-        onClose={() => setIsRequestModalOpen(false)}
-        provider={selectedProvider}
-      />
-    </div>
-  );
-}
+type CoverageArea = {
+  id: string;
+  city: string;
+  region: string;
+  country: string;
+  latitude: number;
+  longitude: number;
+  services: string[];
+  availability: "coordination_available";
+};
 
 const requestSchema = z.object({
   clientName: z.string().min(2, "Name is required"),
@@ -245,11 +57,289 @@ const requestSchema = z.object({
   notes: z.string().optional(),
 });
 
-function RequestServiceModal({ isOpen, onClose, provider }: { isOpen: boolean, onClose: () => void, provider: any }) {
+const SERVICE_COLORS: Record<string, string> = {
+  Dental: "#f07167",
+  "Chest X-Ray": "#4f8fcf",
+  "B-Reader": "#4f8fcf",
+  Spirometry: "#2a9d8f",
+  "Pulmonary Function Testing": "#2a9d8f",
+  "Drug Screen": "#7b61a8",
+  "DOT Physical": "#3a9b6f",
+  Audiogram: "#d08a38",
+  EKG: "#d95d67",
+  "Treadmill Stress Test": "#d95d67",
+  "Laboratory Services": "#7b61a8",
+  Titers: "#7b61a8",
+  Vaccinations: "#3a9b6f",
+  "Physical Examination": "#3a9b6f",
+  "Vision Testing": "#4f8fcf",
+  "Occupational Medicine": "#346b87",
+  "Specialty Services": "#6b7280",
+};
+
+function iconForCoverage(area: CoverageArea) {
+  const primaryService = area.services[0] ?? "Specialty Services";
+  const color = SERVICE_COLORS[primaryService] ?? SERVICE_COLORS["Specialty Services"];
+
+  return new L.DivIcon({
+    className: "coverage-marker-shell",
+    html: `<span class="coverage-marker" style="--coverage-color:${color}"><span class="coverage-marker-core"></span></span>`,
+    iconSize: [18, 18],
+    iconAnchor: [9, 9],
+    popupAnchor: [0, -12],
+  });
+}
+
+function MapUpdater({ center, zoom }: { center: [number, number]; zoom: number }) {
+  const map = useMap();
+
+  useEffect(() => {
+    map.flyTo(center, zoom, { duration: 1.15 });
+  }, [center, map, zoom]);
+
+  return null;
+}
+
+function distanceMiles(a: [number, number], b: [number, number]) {
+  const toRadians = (value: number) => (value * Math.PI) / 180;
+  const earthRadiusMiles = 3958.8;
+  const dLat = toRadians(b[0] - a[0]);
+  const dLon = toRadians(b[1] - a[1]);
+  const lat1 = toRadians(a[0]);
+  const lat2 = toRadians(b[0]);
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
+
+  return 2 * earthRadiusMiles * Math.asin(Math.sqrt(h));
+}
+
+export default function Home() {
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedService, setSelectedService] = useState<string | null>(null);
+  const [mapCenter, setMapCenter] = useState<[number, number]>([18, 0]);
+  const [mapZoom, setMapZoom] = useState(2);
+  const [requestOpen, setRequestOpen] = useState(false);
+  const [selectedCoverage, setSelectedCoverage] = useState<CoverageArea | null>(null);
+  const [searchLabel, setSearchLabel] = useState("Worldwide coverage");
+  const { toast } = useToast();
+  const recordSearch = useRecordSearchEvent();
+
+  const { data: coverageAreas = [], isLoading } = useQuery<CoverageArea[]>({
+    queryKey: ["coverage-areas", selectedService],
+    queryFn: async () => {
+      const query = selectedService ? `?serviceType=${encodeURIComponent(selectedService)}` : "";
+      const response = await fetch(`/api/coverage${query}`, { credentials: "include" });
+      if (!response.ok) throw new Error("Coverage could not be loaded");
+      return response.json();
+    },
+  });
+
+  const totalServices = useMemo(
+    () => new Set(coverageAreas.flatMap((area) => area.services)).size,
+    [coverageAreas],
+  );
+
+  const handleSearch = async (event: React.FormEvent) => {
+    event.preventDefault();
+    const query = searchQuery.trim();
+    if (!query) return;
+
+    try {
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=1&q=${encodeURIComponent(query)}`,
+        { headers: { Accept: "application/json" } },
+      );
+      const results = await response.json();
+      const match = results?.[0];
+
+      if (!match) {
+        toast({ title: "Location not found", description: "Try a city, postal code, or full address." });
+        return;
+      }
+
+      const latitude = Number(match.lat);
+      const longitude = Number(match.lon);
+      const center: [number, number] = [latitude, longitude];
+      const nearbyCount = coverageAreas.filter((area) =>
+        distanceMiles(center, [area.latitude, area.longitude]) <= 75,
+      ).length;
+
+      setMapCenter(center);
+      setMapZoom(9);
+      setSearchLabel(match.display_name ?? query);
+
+      recordSearch.mutate({
+        data: {
+          searchText: query,
+          selectedServiceType: selectedService,
+          geocodedCity: match.address?.city ?? match.address?.town ?? match.address?.village ?? null,
+          geocodedState: match.address?.state ?? null,
+          geocodedCountry: match.address?.country ?? null,
+          latitude,
+          longitude,
+          matchingProviderCount: nearbyCount,
+          zeroResultSearch: nearbyCount === 0,
+          markerClicked: false,
+          requestSubmitted: false,
+        },
+      });
+    } catch {
+      toast({ title: "Search unavailable", description: "The location service could not be reached. Please try again." });
+    }
+  };
+
+  const openRequest = (coverage: CoverageArea | null) => {
+    setSelectedCoverage(coverage);
+    setRequestOpen(true);
+  };
+
+  return (
+    <div className="atlas-shell">
+      <MapContainer center={mapCenter} zoom={mapZoom} className="atlas-map" zoomControl={false} minZoom={2}>
+        <TileLayer
+          url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
+        />
+        <MapUpdater center={mapCenter} zoom={mapZoom} />
+
+        {coverageAreas.map((area) => (
+          <Marker
+            key={area.id}
+            position={[area.latitude, area.longitude]}
+            icon={iconForCoverage(area)}
+            eventHandlers={{
+              click: () => {
+                recordSearch.mutate({
+                  data: {
+                    searchText: searchQuery || "map_coverage_selection",
+                    selectedServiceType: selectedService,
+                    geocodedCity: area.city,
+                    geocodedState: area.region,
+                    geocodedCountry: area.country,
+                    latitude: area.latitude,
+                    longitude: area.longitude,
+                    matchingProviderCount: 1,
+                    zeroResultSearch: false,
+                    markerClicked: true,
+                    requestSubmitted: false,
+                  },
+                });
+              },
+            }}
+          >
+            <Popup className="atlas-popup">
+              <div className="coverage-popup">
+                <div className="coverage-popup-kicker">Occu-Med network capability</div>
+                <h3>Service coordination available</h3>
+                <p>{area.city}, {area.region}{area.country ? ` · ${area.country}` : ""}</p>
+                <div className="coverage-service-list">
+                  {area.services.slice(0, 6).map((service) => (
+                    <span key={service}>{service}</span>
+                  ))}
+                </div>
+                <p className="coverage-popup-note">
+                  Provider identity and final availability are confirmed by Occu-Med during coordination.
+                </p>
+                <Button className="w-full" size="sm" onClick={() => openRequest(area)}>
+                  Request confirmation
+                </Button>
+              </div>
+            </Popup>
+          </Marker>
+        ))}
+      </MapContainer>
+
+      <header className="atlas-header">
+        <GlassPanel className="atlas-brand-panel">
+          <div className="atlas-brand-mark"><Layers3 /></div>
+          <div>
+            <div className="atlas-eyebrow">Occu-Med</div>
+            <h1>Global Coverage Atlas</h1>
+          </div>
+          <div className="atlas-live-status"><span /> Network intelligence</div>
+        </GlassPanel>
+
+        <GlassPanel className="atlas-search-panel">
+          <form onSubmit={handleSearch}>
+            <Search className="atlas-search-icon" />
+            <Input
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              placeholder="Search any address, city, postal code, or country"
+              className="atlas-search-input"
+            />
+            <Button type="submit" className="atlas-search-button" aria-label="Search map">
+              <Navigation />
+            </Button>
+          </form>
+        </GlassPanel>
+
+        <div className="atlas-filter-rail" aria-label="Service filters">
+          <button
+            className={!selectedService ? "atlas-filter active" : "atlas-filter"}
+            onClick={() => setSelectedService(null)}
+          >
+            All services
+          </button>
+          {SERVICE_CATEGORIES.map((category) => (
+            <button
+              key={category}
+              className={selectedService === category ? "atlas-filter active" : "atlas-filter"}
+              onClick={() => setSelectedService(selectedService === category ? null : category)}
+            >
+              {category}
+            </button>
+          ))}
+        </div>
+      </header>
+
+      <GlassPanel className="atlas-summary-card">
+        <div className="atlas-summary-icon"><ShieldCheck /></div>
+        <div>
+          <span>{isLoading ? "Loading coverage" : searchLabel}</span>
+          <strong>{coverageAreas.length} coverage areas · {totalServices} service types</strong>
+        </div>
+      </GlassPanel>
+
+      <Button className="atlas-request-button" onClick={() => openRequest(null)}>
+        <Activity />
+        Request service
+      </Button>
+
+      <GlassPanel className="atlas-disclaimer">
+        <Info />
+        <p>
+          The absence of a provider or service location within this Atlas does not necessarily indicate that Occu-Med is unable to coordinate or facilitate that service. Our network is continuously expanded and verified. Contact Occu-Med for confirmation, specialized requests, or locations not currently reflected here.
+        </p>
+      </GlassPanel>
+
+      <RequestServiceModal
+        isOpen={requestOpen}
+        onClose={() => setRequestOpen(false)}
+        coverage={selectedCoverage}
+        selectedService={selectedService}
+      />
+    </div>
+  );
+}
+
+function RequestServiceModal({
+  isOpen,
+  onClose,
+  coverage,
+  selectedService,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  coverage: CoverageArea | null;
+  selectedService: string | null;
+}) {
   const { toast } = useToast();
   const createRequest = useCreateServiceRequest();
   const recordSearch = useRecordSearchEvent();
-  
+  const locationLabel = coverage ? `${coverage.city}, ${coverage.region}, ${coverage.country}` : "";
+
   const form = useForm<z.infer<typeof requestSchema>>({
     resolver: zodResolver(requestSchema),
     defaultValues: {
@@ -257,191 +347,101 @@ function RequestServiceModal({ isOpen, onClose, provider }: { isOpen: boolean, o
       clientEmail: "",
       clientPhone: "",
       employerCompany: "",
-      requestedService: "",
-      requestedLocation: provider ? `${provider.city}, ${provider.state}` : "",
+      requestedService: selectedService ?? coverage?.services[0] ?? "",
+      requestedLocation: locationLabel,
       urgency: "normal",
-      notes: provider ? `Requested specific provider: ${provider.name} (ID: ${provider.id})` : "",
-    }
+      notes: "",
+    },
   });
 
-  // Update default values if provider changes
   useEffect(() => {
-    if (provider) {
-      form.setValue("requestedLocation", `${provider.city}, ${provider.state}`);
-      const currentNotes = form.getValues("notes");
-      if (!currentNotes?.includes(provider.name)) {
-         form.setValue("notes", `Requested specific provider: ${provider.name} (ID: ${provider.id})\n${currentNotes || ""}`);
-      }
-    }
-  }, [provider, form]);
+    if (!isOpen) return;
+    form.setValue("requestedLocation", locationLabel);
+    form.setValue("requestedService", selectedService ?? coverage?.services[0] ?? "");
+  }, [coverage, form, isOpen, locationLabel, selectedService]);
 
   const onSubmit = (data: z.infer<typeof requestSchema>) => {
     createRequest.mutate({ data }, {
       onSuccess: () => {
-        toast({
-          title: "Request Submitted",
-          description: "Our coordination team will contact you shortly.",
-        });
-        
         recordSearch.mutate({
           data: {
-            searchText: "service_request",
-            matchingProviderCount: 0,
+            searchText: data.requestedLocation,
+            selectedServiceType: data.requestedService,
+            geocodedCity: coverage?.city ?? null,
+            geocodedState: coverage?.region ?? null,
+            geocodedCountry: coverage?.country ?? null,
+            latitude: coverage?.latitude ?? null,
+            longitude: coverage?.longitude ?? null,
+            matchingProviderCount: coverage ? 1 : 0,
             zeroResultSearch: false,
-            markerClicked: false,
-            requestSubmitted: true
-          }
+            markerClicked: Boolean(coverage),
+            requestSubmitted: true,
+            employerName: data.employerCompany || null,
+          },
         });
-        
+        toast({ title: "Request submitted", description: "Occu-Med will confirm availability and coordinate the service." });
         form.reset();
         onClose();
       },
       onError: () => {
-        toast({
-          title: "Submission Failed",
-          description: "There was an error submitting your request. Please try again.",
-          variant: "destructive"
-        });
-      }
+        toast({ title: "Submission failed", description: "Please try again or contact Occu-Med directly.", variant: "destructive" });
+      },
     });
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="glass-panel border-white/10 sm:max-w-[600px] p-0 overflow-hidden">
-        <div className="p-6 bg-card/80 backdrop-blur-xl">
-          <DialogHeader>
-            <DialogTitle className="text-2xl font-bold text-primary">Request Coordination Service</DialogTitle>
-            <DialogDescription>
-              Submit a request for occupational health services. Our team will coordinate the details.
-            </DialogDescription>
-          </DialogHeader>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="atlas-modal sm:max-w-[620px]">
+        <DialogHeader>
+          <DialogTitle>Request service coordination</DialogTitle>
+          <DialogDescription>
+            Occu-Med will confirm the appropriate network location and coordinate the requested service.
+          </DialogDescription>
+        </DialogHeader>
 
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 mt-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="clientName"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Your Name</FormLabel>
-                      <FormControl>
-                        <Input placeholder="John Doe" className="bg-background/50 border-white/10" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="clientEmail"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Email Address</FormLabel>
-                      <FormControl>
-                        <Input type="email" placeholder="john@company.com" className="bg-background/50 border-white/10" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="employerCompany"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Company</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Acme Corp" className="bg-background/50 border-white/10" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="clientPhone"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Phone Number (Optional)</FormLabel>
-                      <FormControl>
-                        <Input placeholder="(555) 123-4567" className="bg-background/50 border-white/10" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="requestedService"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Requested Service</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl>
-                          <SelectTrigger className="bg-background/50 border-white/10">
-                            <SelectValue placeholder="Select a service" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent className="bg-card border-white/10">
-                          {SERVICE_CATEGORIES.map(cat => (
-                            <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="urgency"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Urgency</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl>
-                          <SelectTrigger className="bg-background/50 border-white/10">
-                            <SelectValue placeholder="Select urgency" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent className="bg-card border-white/10">
-                          <SelectItem value="low">Low</SelectItem>
-                          <SelectItem value="normal">Normal</SelectItem>
-                          <SelectItem value="high">High</SelectItem>
-                          <SelectItem value="urgent">Urgent</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              <FormField
-                control={form.control}
-                name="requestedLocation"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Location</FormLabel>
-                    <FormControl>
-                      <Input placeholder="City, State or Zip Code" className="bg-background/50 border-white/10" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <div className="flex justify-end pt-4 gap-2">
-                <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
-                <Button type="submit" disabled={createRequest.isPending}>
-                  {createRequest.isPending ? "Submitting..." : "Submit Request"}
-                </Button>
-              </div>
-            </form>
-          </Form>
-        </div>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 mt-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <FormField control={form.control} name="clientName" render={({ field }) => (
+                <FormItem><FormLabel>Your name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+              )} />
+              <FormField control={form.control} name="clientEmail" render={({ field }) => (
+                <FormItem><FormLabel>Email</FormLabel><FormControl><Input type="email" {...field} /></FormControl><FormMessage /></FormItem>
+              )} />
+              <FormField control={form.control} name="clientPhone" render={({ field }) => (
+                <FormItem><FormLabel>Phone</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+              )} />
+              <FormField control={form.control} name="employerCompany" render={({ field }) => (
+                <FormItem><FormLabel>Employer</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+              )} />
+              <FormField control={form.control} name="requestedService" render={({ field }) => (
+                <FormItem><FormLabel>Requested service</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+              )} />
+              <FormField control={form.control} name="requestedLocation" render={({ field }) => (
+                <FormItem><FormLabel>Requested location</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+              )} />
+              <FormField control={form.control} name="urgency" render={({ field }) => (
+                <FormItem className="md:col-span-2"><FormLabel>Urgency</FormLabel>
+                  <Select value={field.value} onValueChange={field.onChange}>
+                    <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                    <SelectContent>
+                      <SelectItem value="low">Low</SelectItem>
+                      <SelectItem value="normal">Normal</SelectItem>
+                      <SelectItem value="high">High</SelectItem>
+                      <SelectItem value="urgent">Urgent</SelectItem>
+                    </SelectContent>
+                  </Select><FormMessage />
+                </FormItem>
+              )} />
+              <FormField control={form.control} name="notes" render={({ field }) => (
+                <FormItem className="md:col-span-2"><FormLabel>Additional details</FormLabel><FormControl><textarea className="atlas-textarea" rows={4} {...field} /></FormControl><FormMessage /></FormItem>
+              )} />
+            </div>
+            <Button type="submit" className="w-full" disabled={createRequest.isPending}>
+              {createRequest.isPending ? "Submitting…" : "Submit coordination request"}
+            </Button>
+          </form>
+        </Form>
       </DialogContent>
     </Dialog>
   );
