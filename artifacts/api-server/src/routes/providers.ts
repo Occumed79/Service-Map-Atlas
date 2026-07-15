@@ -1,42 +1,73 @@
 import { Router } from "express";
+import { z } from "zod/v4";
 import { db, serviceLocationsTable, serviceCategoriesTable, locationServicesTable } from "@workspace/db";
-import { eq, and, like, or, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { CreateProviderBody, UpdateProviderBody } from "@workspace/api-zod";
 import { requireAdmin } from "../middlewares/auth";
 import { logger } from "../lib/logger";
 
 const router = Router();
+type ProviderInput = z.infer<typeof CreateProviderBody>;
+
+async function createProviderRecord(data: ProviderInput) {
+  const { serviceIds, ...rest } = data;
+  const [location] = await db.insert(serviceLocationsTable).values({
+    name: rest.name,
+    address: rest.address,
+    city: rest.city,
+    state: rest.state,
+    country: rest.country || "US",
+    postalCode: rest.postalCode,
+    latitude: rest.latitude,
+    longitude: rest.longitude,
+    phone: rest.phone,
+    email: rest.email,
+    website: rest.website,
+    availabilityNotes: rest.availabilityNotes,
+    coverageNotes: rest.coverageNotes,
+    internalTags: rest.internalTags,
+    active: rest.active ?? true,
+  }).returning();
+
+  if (serviceIds && serviceIds.length > 0) {
+    await db.insert(locationServicesTable).values(serviceIds.map((categoryId) => ({ locationId: location.id, categoryId })));
+  }
+
+  const services = await db
+    .select({ name: serviceCategoriesTable.name })
+    .from(locationServicesTable)
+    .innerJoin(serviceCategoriesTable, eq(locationServicesTable.categoryId, serviceCategoriesTable.id))
+    .where(eq(locationServicesTable.locationId, location.id));
+
+  return { ...location, services: services.map((service) => service.name), createdAt: location.createdAt.toISOString() };
+}
 
 router.get("/", async (req, res) => {
   try {
     const { serviceType, search, active } = req.query;
-
     let locations = await db.select().from(serviceLocationsTable);
 
     if (active !== undefined) {
-      locations = locations.filter(l => l.active === (active === "true"));
+      locations = locations.filter((location) => location.active === (active === "true"));
     }
 
     if (search && typeof search === "string") {
-      const q = search.toLowerCase();
-      locations = locations.filter(l =>
-        l.name.toLowerCase().includes(q) ||
-        l.city.toLowerCase().includes(q) ||
-        l.state.toLowerCase().includes(q) ||
-        l.country.toLowerCase().includes(q) ||
-        l.address.toLowerCase().includes(q)
+      const query = search.toLowerCase();
+      locations = locations.filter((location) =>
+        location.name.toLowerCase().includes(query) ||
+        location.city.toLowerCase().includes(query) ||
+        location.state.toLowerCase().includes(query) ||
+        location.country.toLowerCase().includes(query) ||
+        location.address.toLowerCase().includes(query),
       );
     }
 
-    const locationIds = locations.map(l => l.id);
-
     let locationServices: { locationId: number; categoryName: string }[] = [];
-    if (locationIds.length > 0) {
-      const rows = await db
+    if (locations.length > 0) {
+      locationServices = await db
         .select({ locationId: locationServicesTable.locationId, categoryName: serviceCategoriesTable.name })
         .from(locationServicesTable)
         .innerJoin(serviceCategoriesTable, eq(locationServicesTable.categoryId, serviceCategoriesTable.id));
-      locationServices = rows;
     }
 
     const serviceMap: Record<number, string[]> = {};
@@ -47,31 +78,31 @@ router.get("/", async (req, res) => {
 
     let filtered = locations;
     if (serviceType && typeof serviceType === "string") {
-      filtered = locations.filter(l => (serviceMap[l.id] || []).some(s => s.toLowerCase() === serviceType.toLowerCase()));
+      filtered = locations.filter((location) =>
+        (serviceMap[location.id] || []).some((service) => service.toLowerCase() === serviceType.toLowerCase()),
+      );
     }
 
-    const result = filtered.map(l => ({
-      id: l.id,
-      name: l.name,
-      address: l.address,
-      city: l.city,
-      state: l.state,
-      country: l.country,
-      postalCode: l.postalCode ?? null,
-      latitude: l.latitude,
-      longitude: l.longitude,
-      phone: l.phone ?? null,
-      email: l.email ?? null,
-      website: l.website ?? null,
-      availabilityNotes: l.availabilityNotes ?? null,
-      coverageNotes: l.coverageNotes ?? null,
-      internalTags: l.internalTags ?? null,
-      active: l.active,
-      services: serviceMap[l.id] || [],
-      createdAt: l.createdAt.toISOString(),
-    }));
-
-    res.json(result);
+    res.json(filtered.map((location) => ({
+      id: location.id,
+      name: location.name,
+      address: location.address,
+      city: location.city,
+      state: location.state,
+      country: location.country,
+      postalCode: location.postalCode ?? null,
+      latitude: location.latitude,
+      longitude: location.longitude,
+      phone: location.phone ?? null,
+      email: location.email ?? null,
+      website: location.website ?? null,
+      availabilityNotes: location.availabilityNotes ?? null,
+      coverageNotes: location.coverageNotes ?? null,
+      internalTags: location.internalTags ?? null,
+      active: location.active,
+      services: serviceMap[location.id] || [],
+      createdAt: location.createdAt.toISOString(),
+    })));
   } catch (err) {
     logger.error({ err }, "List providers error");
     res.status(500).json({ error: "Internal server error" });
@@ -103,7 +134,7 @@ router.get("/:id", async (req, res) => {
       availabilityNotes: location.availabilityNotes ?? null,
       coverageNotes: location.coverageNotes ?? null,
       internalTags: location.internalTags ?? null,
-      services: services.map(s => s.name),
+      services: services.map((service) => service.name),
       createdAt: location.createdAt.toISOString(),
     });
   } catch (err) {
@@ -118,40 +149,32 @@ router.post("/", requireAdmin, async (req, res) => {
     res.status(400).json({ error: "Invalid request body" });
     return;
   }
+
   try {
-    const { serviceIds, ...rest } = parsed.data;
-    const [location] = await db.insert(serviceLocationsTable).values({
-      name: rest.name,
-      address: rest.address,
-      city: rest.city,
-      state: rest.state,
-      country: rest.country || "US",
-      postalCode: rest.postalCode,
-      latitude: rest.latitude,
-      longitude: rest.longitude,
-      phone: rest.phone,
-      email: rest.email,
-      website: rest.website,
-      availabilityNotes: rest.availabilityNotes,
-      coverageNotes: rest.coverageNotes,
-      internalTags: rest.internalTags,
-      active: rest.active ?? true,
-    }).returning();
-
-    if (serviceIds && serviceIds.length > 0) {
-      await db.insert(locationServicesTable).values(serviceIds.map(cid => ({ locationId: location.id, categoryId: cid })));
-    }
-
-    const services = await db
-      .select({ name: serviceCategoriesTable.name })
-      .from(locationServicesTable)
-      .innerJoin(serviceCategoriesTable, eq(locationServicesTable.categoryId, serviceCategoriesTable.id))
-      .where(eq(locationServicesTable.locationId, location.id));
-
-    res.status(201).json({ ...location, services: services.map(s => s.name), createdAt: location.createdAt.toISOString() });
+    const created = await createProviderRecord(parsed.data);
+    res.status(201).json(created);
   } catch (err) {
     logger.error({ err }, "Create provider error");
     res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.post("/bulk", requireAdmin, async (req, res) => {
+  const parsed = z.object({ providers: z.array(CreateProviderBody).min(1).max(1000) }).safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid bulk provider data", details: parsed.error.issues.slice(0, 20) });
+    return;
+  }
+
+  try {
+    const created = [];
+    for (const provider of parsed.data.providers) {
+      created.push(await createProviderRecord(provider));
+    }
+    res.status(201).json({ createdCount: created.length, providers: created });
+  } catch (err) {
+    logger.error({ err }, "Bulk create providers error");
+    res.status(500).json({ error: "Bulk import failed before completion" });
   }
 });
 
@@ -161,10 +184,10 @@ router.patch("/:id", requireAdmin, async (req, res) => {
     res.status(400).json({ error: "Invalid request body" });
     return;
   }
+
   try {
     const id = parseInt(String(req.params.id));
     const { serviceIds, ...rest } = parsed.data;
-
     const updateData: Record<string, unknown> = {};
     if (rest.name !== undefined) updateData.name = rest.name;
     if (rest.address !== undefined) updateData.address = rest.address;
@@ -191,7 +214,7 @@ router.patch("/:id", requireAdmin, async (req, res) => {
     if (serviceIds !== undefined) {
       await db.delete(locationServicesTable).where(eq(locationServicesTable.locationId, id));
       if (serviceIds.length > 0) {
-        await db.insert(locationServicesTable).values(serviceIds.map(cid => ({ locationId: id, categoryId: cid })));
+        await db.insert(locationServicesTable).values(serviceIds.map((categoryId) => ({ locationId: id, categoryId })));
       }
     }
 
@@ -201,7 +224,7 @@ router.patch("/:id", requireAdmin, async (req, res) => {
       .innerJoin(serviceCategoriesTable, eq(locationServicesTable.categoryId, serviceCategoriesTable.id))
       .where(eq(locationServicesTable.locationId, id));
 
-    res.json({ ...updated, services: services.map(s => s.name), createdAt: updated.createdAt.toISOString() });
+    res.json({ ...updated, services: services.map((service) => service.name), createdAt: updated.createdAt.toISOString() });
   } catch (err) {
     logger.error({ err }, "Update provider error");
     res.status(500).json({ error: "Internal server error" });
@@ -238,7 +261,7 @@ router.get("/:id/services", async (req, res) => {
       .innerJoin(serviceCategoriesTable, eq(locationServicesTable.categoryId, serviceCategoriesTable.id))
       .where(eq(locationServicesTable.locationId, id));
 
-    res.json(services.map(s => ({ ...s, providerCount: 1, description: s.description ?? null, icon: s.icon ?? null })));
+    res.json(services.map((service) => ({ ...service, providerCount: 1, description: service.description ?? null, icon: service.icon ?? null })));
   } catch (err) {
     logger.error({ err }, "Get provider services error");
     res.status(500).json({ error: "Internal server error" });
