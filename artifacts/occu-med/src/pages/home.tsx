@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { MapContainer, Marker, Popup, TileLayer, useMap } from "react-leaflet";
 import { useQuery } from "@tanstack/react-query";
 import L from "leaflet";
-import { Activity, Info, Layers3, Navigation, Search, ShieldCheck } from "lucide-react";
+import { Activity, Info, Layers3, Navigation, Search } from "lucide-react";
 import { useCreateServiceRequest, useRecordSearchEvent } from "@workspace/api-client-react";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { Input } from "@/components/ui/input";
@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/lib/auth";
 import * as z from "zod";
 
 const SERVICE_CATEGORIES = [
@@ -121,7 +122,7 @@ export default function Home() {
   const [mapZoom, setMapZoom] = useState(2);
   const [requestOpen, setRequestOpen] = useState(false);
   const [selectedCoverage, setSelectedCoverage] = useState<CoverageArea | null>(null);
-  const [searchLabel, setSearchLabel] = useState("Worldwide coverage");
+  const [searchLabel, setSearchLabel] = useState("Worldwide");
   const { toast } = useToast();
   const recordSearch = useRecordSearchEvent();
 
@@ -196,10 +197,11 @@ export default function Home() {
 
   return (
     <div className="atlas-shell">
-      <MapContainer center={mapCenter} zoom={mapZoom} className="atlas-map" zoomControl={false} minZoom={2}>
+      <MapContainer center={mapCenter} zoom={mapZoom} className="atlas-map" zoomControl={false} minZoom={2} maxZoom={18}>
         <TileLayer
-          url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
+          url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}"
+          attribution="Tiles &copy; Esri"
+          maxZoom={18}
         />
         <MapUpdater center={mapCenter} zoom={mapZoom} />
 
@@ -241,7 +243,7 @@ export default function Home() {
                 <p className="coverage-popup-note">
                   Provider identity and final availability are confirmed by Occu-Med during coordination.
                 </p>
-                <Button className="w-full" size="sm" onClick={() => openRequest(area)}>
+                <Button className="w-full atlas-popup-action" size="sm" onClick={() => openRequest(area)}>
                   Request confirmation
                 </Button>
               </div>
@@ -257,7 +259,6 @@ export default function Home() {
             <div className="atlas-eyebrow">Occu-Med</div>
             <h1>Global Coverage Atlas</h1>
           </div>
-          <div className="atlas-live-status"><span /> Network intelligence</div>
         </GlassPanel>
 
         <GlassPanel className="atlas-search-panel">
@@ -277,6 +278,7 @@ export default function Home() {
 
         <div className="atlas-filter-rail" aria-label="Service filters">
           <button
+            type="button"
             className={!selectedService ? "atlas-filter active" : "atlas-filter"}
             onClick={() => setSelectedService(null)}
           >
@@ -284,6 +286,7 @@ export default function Home() {
           </button>
           {SERVICE_CATEGORIES.map((category) => (
             <button
+              type="button"
               key={category}
               className={selectedService === category ? "atlas-filter active" : "atlas-filter"}
               onClick={() => setSelectedService(selectedService === category ? null : category)}
@@ -294,15 +297,12 @@ export default function Home() {
         </div>
       </header>
 
-      <GlassPanel className="atlas-summary-card">
-        <div className="atlas-summary-icon"><ShieldCheck /></div>
-        <div>
-          <span>{isLoading ? "Loading coverage" : searchLabel}</span>
-          <strong>{coverageAreas.length} coverage areas · {totalServices} service types</strong>
-        </div>
+      <GlassPanel className="atlas-summary-card" title={searchLabel}>
+        <span className="atlas-summary-location">{isLoading ? "Loading" : searchLabel}</span>
+        <strong>{coverageAreas.length} areas · {totalServices} services</strong>
       </GlassPanel>
 
-      <Button className="atlas-request-button" onClick={() => openRequest(null)}>
+      <Button type="button" className="atlas-request-button" onClick={() => openRequest(null)}>
         <Activity />
         Request service
       </Button>
@@ -336,6 +336,7 @@ function RequestServiceModal({
   selectedService: string | null;
 }) {
   const { toast } = useToast();
+  const { user } = useAuth();
   const createRequest = useCreateServiceRequest();
   const recordSearch = useRecordSearchEvent();
   const locationLabel = coverage ? `${coverage.city}, ${coverage.region}, ${coverage.country}` : "";
@@ -343,10 +344,10 @@ function RequestServiceModal({
   const form = useForm<z.infer<typeof requestSchema>>({
     resolver: zodResolver(requestSchema),
     defaultValues: {
-      clientName: "",
-      clientEmail: "",
+      clientName: user?.name ?? "",
+      clientEmail: user?.email ?? "",
       clientPhone: "",
-      employerCompany: "",
+      employerCompany: user?.employerName ?? "",
       requestedService: selectedService ?? coverage?.services[0] ?? "",
       requestedLocation: locationLabel,
       urgency: "normal",
@@ -356,9 +357,12 @@ function RequestServiceModal({
 
   useEffect(() => {
     if (!isOpen) return;
+    form.setValue("clientName", user?.name ?? form.getValues("clientName"));
+    form.setValue("clientEmail", user?.email ?? form.getValues("clientEmail"));
+    form.setValue("employerCompany", user?.employerName ?? form.getValues("employerCompany"));
     form.setValue("requestedLocation", locationLabel);
     form.setValue("requestedService", selectedService ?? coverage?.services[0] ?? "");
-  }, [coverage, form, isOpen, locationLabel, selectedService]);
+  }, [coverage, form, isOpen, locationLabel, selectedService, user]);
 
   const onSubmit = (data: z.infer<typeof requestSchema>) => {
     createRequest.mutate({ data }, {
@@ -380,7 +384,16 @@ function RequestServiceModal({
           },
         });
         toast({ title: "Request submitted", description: "Occu-Med will confirm availability and coordinate the service." });
-        form.reset();
+        form.reset({
+          clientName: user?.name ?? "",
+          clientEmail: user?.email ?? "",
+          clientPhone: "",
+          employerCompany: user?.employerName ?? "",
+          requestedService: "",
+          requestedLocation: "",
+          urgency: "normal",
+          notes: "",
+        });
         onClose();
       },
       onError: () => {
@@ -391,7 +404,7 @@ function RequestServiceModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="atlas-modal sm:max-w-[620px]">
+      <DialogContent className="atlas-modal sm:max-w-[620px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Request service coordination</DialogTitle>
           <DialogDescription>
@@ -437,7 +450,7 @@ function RequestServiceModal({
                 <FormItem className="md:col-span-2"><FormLabel>Additional details</FormLabel><FormControl><textarea className="atlas-textarea" rows={4} {...field} /></FormControl><FormMessage /></FormItem>
               )} />
             </div>
-            <Button type="submit" className="w-full" disabled={createRequest.isPending}>
+            <Button type="submit" className="w-full atlas-modal-submit" disabled={createRequest.isPending}>
               {createRequest.isPending ? "Submitting…" : "Submit coordination request"}
             </Button>
           </form>
