@@ -18,6 +18,22 @@ import { AdminLayout } from "@/components/admin-layout";
 
 const queryClient = new QueryClient();
 
+function ClientRoute({ component: Component }: { component: React.ComponentType<any> }) {
+  const { isAuthenticated, isLoading } = useAuth();
+  const [, setLocation] = useLocation();
+
+  if (isLoading) {
+    return <div className="min-h-screen flex items-center justify-center bg-background text-foreground">Loading Atlas…</div>;
+  }
+
+  if (!isAuthenticated) {
+    setLocation("/login");
+    return null;
+  }
+
+  return <Component />;
+}
+
 function AdminRoute({ component: Component }: { component: React.ComponentType<any> }) {
   const { isAuthenticated, isLoading, user } = useAuth();
   const [, setLocation] = useLocation();
@@ -41,7 +57,7 @@ function AdminRoute({ component: Component }: { component: React.ComponentType<a
 function Router() {
   return (
     <Switch>
-      <Route path="/" component={Home} />
+      <Route path="/" component={() => <ClientRoute component={Home} />} />
       <Route path="/login" component={Login} />
       <Route path="/accept-invite/:token" component={AcceptInvite} />
 
