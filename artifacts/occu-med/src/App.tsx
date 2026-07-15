@@ -120,12 +120,16 @@ function AdminRouter() {
 }
 
 function App() {
+  const shellClass = APP_MODE === "admin"
+    ? "admin-app dark text-foreground bg-background min-h-screen"
+    : "client-app text-foreground bg-background min-h-screen";
+
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <TooltipProvider>
           <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-            <div className="text-foreground bg-background min-h-screen">
+            <div className={shellClass}>
               {APP_MODE === "admin" ? <AdminRouter /> : <ClientRouter />}
             </div>
           </WouterRouter>
