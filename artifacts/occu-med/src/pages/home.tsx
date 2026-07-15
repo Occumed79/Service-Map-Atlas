@@ -9,8 +9,6 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { OccuMedLogo } from "@/components/occu-med-logo";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useToast } from "@/hooks/use-toast";
@@ -234,12 +232,7 @@ export default function Home() {
         ))}
       </MapContainer>
 
-      <header className="atlas-header">
-        <GlassPanel className="atlas-brand-panel atlas-brand-panel-with-logo">
-          <div className="atlas-logo-surface"><OccuMedLogo className="atlas-logo-artwork" /></div>
-          <h1>Global Coverage Atlas</h1>
-        </GlassPanel>
-
+      <header className="atlas-header atlas-header-search-only">
         <GlassPanel className="atlas-search-panel">
           <form onSubmit={handleSearch}>
             <Search className="atlas-search-icon" />
@@ -277,9 +270,9 @@ export default function Home() {
         <ClipboardPlus /> Request service
       </Button>
 
-      <GlassPanel className="atlas-disclaimer">
+      <GlassPanel className="atlas-disclaimer atlas-disclaimer-attention">
         <Info />
-        <p>The absence of a provider or service location within this Atlas does not necessarily indicate that Occu-Med is unable to coordinate or facilitate that service. Our network is continuously expanded and verified. Contact Occu-Med for confirmation, specialized requests, or locations not currently reflected here.</p>
+        <p><strong>The absence of a provider or service location within this Atlas does not necessarily indicate that Occu-Med is unable to coordinate or facilitate that service. Our network is continuously expanded and verified. Contact Occu-Med for confirmation, specialized requests, or locations not currently reflected here.</strong></p>
       </GlassPanel>
 
       <RequestServiceModal isOpen={requestOpen} onClose={() => setRequestOpen(false)} coverage={selectedCoverage} selectedService={selectedService} />
@@ -383,15 +376,14 @@ function RequestServiceModal({
               <FormField control={form.control} name="urgency" render={({ field }) => (
                 <FormItem className="md:col-span-2">
                   <FormLabel>Urgency</FormLabel>
-                  <Select value={field.value} onValueChange={field.onChange}>
-                    <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
-                    <SelectContent>
-                      <SelectItem value="low">Low</SelectItem>
-                      <SelectItem value="normal">Normal</SelectItem>
-                      <SelectItem value="high">High</SelectItem>
-                      <SelectItem value="urgent">Urgent</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <FormControl>
+                    <select {...field} className="atlas-native-select" aria-label="Urgency">
+                      <option value="low">Low</option>
+                      <option value="normal">Normal</option>
+                      <option value="high">High</option>
+                      <option value="urgent">Urgent</option>
+                    </select>
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )} />
