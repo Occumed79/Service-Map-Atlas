@@ -1,7 +1,7 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
-import { db, invitationsTable, usersTable } from "@workspace/db";
+import { db, invitationsTable, usersTable, employerAccountsTable } from "@workspace/db";
 import { eq, and, gt } from "drizzle-orm";
 import { CreateInvitationBody, AcceptInvitationBody } from "@workspace/api-zod";
 import { requireAdmin } from "../middlewares/auth";
@@ -44,7 +44,7 @@ router.post("/", requireAdmin, async (req, res) => {
   }
   try {
     const token = crypto.randomBytes(32).toString("hex");
-    const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 72); // 72 hours
+    const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 72);
 
     const [inv] = await db.insert(invitationsTable).values({
       email: parsed.data.email.toLowerCase(),
@@ -60,7 +60,7 @@ router.post("/", requireAdmin, async (req, res) => {
       ? await db.select({ name: usersTable.name }).from(usersTable).where(eq(usersTable.id, req.session.userId)).limit(1)
       : [];
 
-    logger.info({ email: parsed.data.email, token, invitationId: inv.id }, "Invitation created");
+    logger.info({ email: parsed.data.email, invitationId: inv.id }, "Invitation created");
 
     res.status(201).json({
       id: inv.id,
@@ -140,6 +140,29 @@ router.post("/:token/accept", async (req, res) => {
       return;
     }
 
+    let employerAccountId: number | null = null;
+    const employerName = inv.employerName?.trim() || null;
+
+    if (employerName) {
+      const existingEmployers = await db
+        .select()
+        .from(employerAccountsTable)
+        .where(eq(employerAccountsTable.name, employerName))
+        .limit(1);
+
+      if (existingEmployers[0]) {
+        employerAccountId = existingEmployers[0].id;
+      } else {
+        const emailDomain = inv.email.split("@")[1] ?? null;
+        const [createdEmployer] = await db.insert(employerAccountsTable).values({
+          name: employerName,
+          emailDomain,
+          contactEmail: inv.email,
+        }).returning();
+        employerAccountId = createdEmployer.id;
+      }
+    }
+
     const passwordHash = await bcrypt.hash(parsed.data.password, 12);
     const [user] = await db.insert(usersTable).values({
       email: inv.email,
@@ -147,20 +170,25 @@ router.post("/:token/accept", async (req, res) => {
       passwordHash,
       role: inv.role,
       active: true,
+      employerAccountId,
     }).returning();
 
     await db.update(invitationsTable).set({ status: "accepted", acceptedAt: now }).where(eq(invitationsTable.id, inv.id));
 
     req.session.userId = user.id;
     req.session.userRole = user.role;
+    req.session.userName = user.name;
+    req.session.userEmail = user.email;
+    req.session.employerAccountId = employerAccountId;
+    req.session.employerName = employerName;
 
     res.json({
       id: user.id,
       email: user.email,
       name: user.name,
       role: user.role,
-      employerAccountId: null,
-      employerName: inv.employerName ?? null,
+      employerAccountId,
+      employerName,
       createdAt: user.createdAt.toISOString(),
     });
   } catch (err) {
