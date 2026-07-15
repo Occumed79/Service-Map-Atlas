@@ -12,11 +12,13 @@ The Express server now serves both:
 - **Service type:** Web Service
 - **Runtime:** Node
 - **Repository:** `Occumed79/Service-Map-Atlas`
-- **Branch:** `main` after the Atlas hardening pull request is merged
+- **Branch:** `main`
 - **Root directory:** leave blank
 - **Build command:**
 
-  `corepack enable && pnpm install --frozen-lockfile && pnpm run build:render`
+  `pnpm install --frozen-lockfile && pnpm run build:render`
+
+  Render's Node environment already provides `pnpm`. Do not run `corepack enable`; it attempts to replace `/usr/bin/pnpm` and fails because that filesystem path is read-only.
 
 - **Start command:**
 
