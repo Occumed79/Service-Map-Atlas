@@ -1,57 +1,54 @@
 .admin-app {
-  --background: 230 40% 4%;
-  --foreground: 210 20% 98%;
-  --card: 230 40% 6%;
-  --card-foreground: 210 20% 98%;
-  --card-border: 230 30% 12%;
-  --popover: 230 40% 8%;
-  --popover-foreground: 210 20% 98%;
-  --popover-border: 230 30% 15%;
-  --primary: 185 100% 45%;
-  --primary-foreground: 230 40% 6%;
-  --secondary: 230 30% 15%;
-  --secondary-foreground: 210 20% 98%;
-  --muted: 230 30% 12%;
-  --muted-foreground: 215 20% 65%;
-  --accent: 185 100% 45%;
-  --accent-foreground: 230 40% 6%;
-  --destructive: 0 84% 60%;
-  --destructive-foreground: 210 20% 98%;
-  --input: 230 30% 20%;
-  --ring: 185 100% 45%;
-  --border: 230 30% 12%;
-  --radius: 0.75rem;
+  --background: 206 45% 96%;
+  --foreground: 215 42% 18%;
+  --card: 0 0% 100%;
+  --card-foreground: 215 42% 18%;
+  --card-border: 210 28% 86%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 215 42% 18%;
+  --popover-border: 210 28% 84%;
+  --primary: 204 60% 30%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 207 36% 91%;
+  --secondary-foreground: 215 42% 22%;
+  --muted: 207 28% 92%;
+  --muted-foreground: 215 16% 44%;
+  --accent: 207 42% 86%;
+  --accent-foreground: 215 42% 22%;
+  --destructive: 0 68% 51%;
+  --destructive-foreground: 0 0% 100%;
+  --input: 210 26% 84%;
+  --ring: 204 60% 30%;
+  --border: 210 25% 84%;
+  --radius: 1rem;
   min-height: 100vh;
   color: hsl(var(--foreground));
   background:
-    radial-gradient(circle at 84% 10%, rgba(0, 229, 255, 0.055), transparent 28%),
-    radial-gradient(circle at 18% 88%, rgba(0, 229, 255, 0.035), transparent 34%),
-    linear-gradient(145deg, #050611 0%, #080a18 48%, #060711 100%);
+    radial-gradient(circle at 13% 14%, rgba(106, 177, 202, 0.17), transparent 28%),
+    radial-gradient(circle at 86% 10%, rgba(143, 181, 210, 0.14), transparent 27%),
+    radial-gradient(circle at 74% 82%, rgba(174, 210, 220, 0.15), transparent 31%),
+    linear-gradient(145deg, #edf6fa 0%, #f8fbfd 47%, #e8f1f6 100%);
 }
 
 .admin-app .glass-panel {
-  background: rgba(10, 13, 29, 0.72);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: linear-gradient(135deg, rgba(255,255,255,0.82), rgba(244,249,252,0.66));
+  border: 1px solid rgba(255,255,255,0.92);
   box-shadow:
-    0 24px 70px rgba(0, 0, 0, 0.34),
-    inset 0 1px 0 rgba(255, 255, 255, 0.035);
-  backdrop-filter: blur(26px) saturate(130%);
-  -webkit-backdrop-filter: blur(26px) saturate(130%);
-}
-
-.admin-app input,
-.admin-app textarea,
-.admin-app button,
-.admin-app [role="combobox"] {
-  color-scheme: dark;
+    0 18px 50px rgba(36, 67, 84, 0.14),
+    inset 0 1px 0 rgba(255,255,255,0.96),
+    inset 0 -1px 0 rgba(94, 126, 143, 0.07);
+  backdrop-filter: blur(28px) saturate(150%);
+  -webkit-backdrop-filter: blur(28px) saturate(150%);
 }
 
 .admin-app input,
 .admin-app textarea,
 .admin-app [role="combobox"] {
-  background: rgba(7, 10, 24, 0.72) !important;
-  border-color: rgba(255, 255, 255, 0.09) !important;
+  color-scheme: light;
+  background: rgba(255, 255, 255, 0.72) !important;
+  border-color: rgba(119, 148, 164, 0.27) !important;
   color: hsl(var(--foreground)) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.94), 0 3px 10px rgba(48,79,96,0.08);
 }
 
 .admin-app input::placeholder,
@@ -64,21 +61,27 @@
 }
 
 .admin-app thead {
-  background: rgba(255, 255, 255, 0.015) !important;
+  background: rgba(255,255,255,0.42) !important;
 }
 
 .admin-app tbody tr {
-  border-color: rgba(255, 255, 255, 0.055);
+  border-color: rgba(92, 119, 136, 0.11);
 }
 
 .admin-app tbody tr:hover {
-  background: rgba(255, 255, 255, 0.018);
+  background: rgba(215, 232, 241, 0.34);
+}
+
+.admin-app .admin-icon,
+.admin-app .admin-icon svg {
+  color: #173b5c !important;
+  stroke: #173b5c !important;
 }
 
 .admin-app .atlas-modal {
-  border: 1px solid rgba(255,255,255,.09) !important;
-  background: rgba(8, 11, 26, .96) !important;
+  border: 1px solid rgba(255,255,255,.94) !important;
+  background: rgba(247,251,253,.97) !important;
   color: hsl(var(--foreground)) !important;
-  box-shadow: 0 30px 90px rgba(0,0,0,.52) !important;
-  backdrop-filter: blur(32px) saturate(135%);
+  box-shadow: 0 30px 90px rgba(34,68,88,.24) !important;
+  backdrop-filter: blur(32px) saturate(150%);
 }
