@@ -12,16 +12,21 @@ import invitationsRouter from "./invitations";
 import { requireAdmin } from "../middlewares/auth";
 
 const router: IRouter = Router();
+const appMode = process.env.APP_MODE === "admin" ? "admin" : "client";
 
 router.use(healthRouter);
 router.use("/auth", authRouter);
-router.use("/coverage", coverageRouter);
-router.use("/providers", requireAdmin, providersRouter);
 router.use("/categories", categoriesRouter);
 router.use("/service-requests", requestsRouter);
-router.use("/search-events", searchRouter);
-router.use("/analytics", analyticsRouter);
-router.use("/users", usersRouter);
 router.use("/invitations", invitationsRouter);
+
+if (appMode === "admin") {
+  router.use("/providers", requireAdmin, providersRouter);
+  router.use("/analytics", analyticsRouter);
+  router.use("/users", usersRouter);
+} else {
+  router.use("/coverage", coverageRouter);
+  router.use("/search-events", searchRouter);
+}
 
 export default router;
