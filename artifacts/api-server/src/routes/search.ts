@@ -1,22 +1,23 @@
 import { Router } from "express";
 import { db, searchEventsTable } from "@workspace/db";
 import { RecordSearchEventBody } from "@workspace/api-zod";
+import { requireAuth } from "../middlewares/auth";
 import { logger } from "../lib/logger";
 
 const router = Router();
 
-router.post("/", async (req, res) => {
+router.post("/", requireAuth, async (req, res) => {
   const parsed = RecordSearchEventBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "Invalid request body" });
     return;
   }
   try {
-    const userId = req.session?.userId ?? null;
-    const userName = req.session?.userName ?? null;
-    const userEmail = req.session?.userEmail ?? null;
-    const employerAccountId = req.session?.employerAccountId ?? null;
-    const employerName = parsed.data.employerName ?? req.session?.employerName ?? null;
+    const userId = req.session.userId ?? null;
+    const userName = req.session.userName ?? null;
+    const userEmail = req.session.userEmail ?? null;
+    const employerAccountId = req.session.employerAccountId ?? null;
+    const employerName = req.session.employerName ?? parsed.data.employerName ?? null;
 
     const emailDomain = userEmail
       ? userEmail.split("@")[1] ?? null
