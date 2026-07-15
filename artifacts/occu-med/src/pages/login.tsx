@@ -59,7 +59,7 @@ export default function Login() {
 
       <GlassPanel className="w-full max-w-md p-8 relative z-10 rounded-[28px]">
         <div className="flex flex-col items-center mb-8 text-center">
-          <OccuMedLogo className="w-[320px] max-w-[94%] h-auto mb-3" />
+          <OccuMedLogo className="w-[320px] max-w-[94%] h-auto mb-3 [filter:drop-shadow(0_0_1px_rgba(88,67,34,0.95))_drop-shadow(0_0_5px_rgba(255,250,225,1))_drop-shadow(0_0_14px_rgba(232,208,150,0.9))]" />
           <h1 className="text-2xl font-bold tracking-tight">
             {isAdminService ? "Atlas Administration" : "Global Coverage Atlas"}
           </h1>
