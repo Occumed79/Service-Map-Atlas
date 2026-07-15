@@ -2,7 +2,7 @@ import { Router } from "express";
 import { db, serviceRequestsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { CreateServiceRequestBody, UpdateServiceRequestBody } from "@workspace/api-zod";
-import { requireAdmin } from "../middlewares/auth";
+import { requireAdmin, requireAuth } from "../middlewares/auth";
 import { logger } from "../lib/logger";
 
 const router = Router();
@@ -35,7 +35,7 @@ router.get("/", requireAdmin, async (req, res) => {
   }
 });
 
-router.post("/", async (req, res) => {
+router.post("/", requireAuth, async (req, res) => {
   const parsed = CreateServiceRequestBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "Invalid request body" });
@@ -46,7 +46,7 @@ router.post("/", async (req, res) => {
       clientName: parsed.data.clientName,
       clientEmail: parsed.data.clientEmail,
       clientPhone: parsed.data.clientPhone,
-      employerCompany: parsed.data.employerCompany,
+      employerCompany: parsed.data.employerCompany ?? req.session.employerName ?? null,
       requestedService: parsed.data.requestedService,
       requestedLocation: parsed.data.requestedLocation,
       urgency: parsed.data.urgency,
