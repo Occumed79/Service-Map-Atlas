@@ -107,7 +107,6 @@ function AdminRouter() {
     <Switch>
       <Route path="/" component={AdminEntry} />
       <Route path="/login" component={Login} />
-      <Route path="/accept-invite/:token" component={AcceptInvite} />
       <Route path="/admin" component={() => <AdminRoute component={AdminDashboard} />} />
       <Route path="/admin/providers" component={() => <AdminRoute component={AdminProviders} />} />
       <Route path="/admin/requests" component={() => <AdminRoute component={AdminRequests} />} />
