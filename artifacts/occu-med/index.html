@@ -16,6 +16,12 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+      /* Richer Esri color grading while preserving the current tile source, labels, and map detail. */
+      .atlas-map .leaflet-tile-pane {
+        filter: saturate(1.13) contrast(1.03) brightness(1.01) !important;
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>
