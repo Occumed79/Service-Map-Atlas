@@ -6,9 +6,6 @@ type ArcgisLoader = {
   import: (moduleIds: string | string[]) => Promise<any>;
 };
 
-// ArcGIS SDK 5.x creates `$arcgis` as a module-global identifier. It is not
-// guaranteed to be a property of `window`, so reading `window.$arcgis` leaves
-// the Atlas permanently on its Leaflet fallback in browsers such as Safari.
 declare const $arcgis: ArcgisLoader | undefined;
 
 declare global {
@@ -34,7 +31,7 @@ function waitForArcgisLoader(timeoutMs = 20_000): Promise<ArcgisLoader> {
       }
 
       if (Date.now() - startedAt >= timeoutMs) {
-        reject(new Error("ArcGIS Maps SDK loaded without exposing the $arcgis module loader"));
+        reject(new Error("ArcGIS Maps SDK did not expose the $arcgis module loader"));
         return;
       }
 
@@ -52,6 +49,21 @@ function installArcgisBasemap(leafletMap: L.Map): void {
   container.dataset.arcgisWebmapInstalled = "true";
   container.dataset.arcgisStatus = "loading";
   container.classList.add("atlas-arcgis-loading");
+
+  // There is intentionally no Leaflet basemap fallback. Remove every raster
+  // tile layer already mounted and immediately reject any tile layer added later.
+  const removeLeafletTileLayer = (layer: L.Layer) => {
+    if (layer instanceof L.TileLayer && leafletMap.hasLayer(layer)) {
+      leafletMap.removeLayer(layer);
+    }
+  };
+
+  const handleLayerAdd = (event: L.LayerEvent) => {
+    removeLeafletTileLayer(event.layer);
+  };
+
+  leafletMap.eachLayer(removeLeafletTileLayer);
+  leafletMap.on("layeradd", handleLayerAdd);
 
   const host = document.createElement("div");
   host.className = "atlas-arcgis-webmap";
@@ -83,6 +95,7 @@ function installArcgisBasemap(leafletMap: L.Map): void {
   const cleanup = () => {
     destroyed = true;
     if (animationFrame) window.cancelAnimationFrame(animationFrame);
+    leafletMap.off("layeradd", handleLayerAdd);
     leafletMap.off("move zoom moveend zoomend resize", scheduleSync);
     resizeObserver?.disconnect();
     try {
@@ -113,9 +126,6 @@ function installArcgisBasemap(leafletMap: L.Map): void {
         portalItem: { id: ARCGIS_WEBMAP_ID },
       });
 
-      // Force the portal item and all basemap dependencies to resolve before
-      // hiding the Leaflet fallback. A failed item/key request therefore cannot
-      // look like a successful deployment.
       await webMap.load();
       if (destroyed) return;
 
@@ -159,7 +169,7 @@ function installArcgisBasemap(leafletMap: L.Map): void {
       container.classList.add("atlas-arcgis-error");
       container.dataset.arcgisStatus = "error";
       container.dataset.arcgisError = message.slice(0, 240);
-      host.remove();
+      // Keep the ArcGIS host in place. The removed Leaflet basemap is never restored.
     });
 }
 
