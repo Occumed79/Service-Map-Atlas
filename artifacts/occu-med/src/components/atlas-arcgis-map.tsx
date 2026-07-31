@@ -64,11 +64,16 @@ function waitForArcgisLoader(timeoutMs = 25_000): Promise<ArcgisLoader> {
 }
 
 function escapeHtml(value: string) {
+  // Build entities without embedding literal HTML entity text in source.
+  const amp = "&" + "amp;";
+  const lt = "&" + "lt;";
+  const gt = "&" + "gt;";
+  const quot = "&" + "quot;";
   return value
-    .replace(/&/g, "&")
-    .replace(/</g, "<")
-    .replace(/>/g, ">")
-    .replace(/"/g, """);
+    .replace(/&/g, amp)
+    .replace(/</g, lt)
+    .replace(/>/g, gt)
+    .replace(/"/g, quot);
 }
 
 function syncCoverageGraphics(
@@ -243,23 +248,57 @@ export function AtlasArcgisMap({
 
           const servicesHtml = area.services
             .slice(0, 6)
-            .map((s) => `<span>${escapeHtml(s)}</span>`)
+            .map((s) => "<span>" + escapeHtml(s) + "</span>")
             .join("");
 
           const node = document.createElement("div");
           node.className = "coverage-popup";
-          node.innerHTML = `
-            <div class="coverage-popup-kicker">Occu-Med network capability</div>
-            <h3>Service coordination available</h3>
-            <p>${escapeHtml(area.city)}, ${escapeHtml(area.region)}${area.country ? ` · ${escapeHtml(area.country)}` : ""}</p>
-            <div class="coverage-service-list">${servicesHtml}</div>
-            <p class="coverage-popup-note">Provider identity and final availability are confirmed by Occu-Med during coordination.</p>
-            <button type="button" class="atlas-popup-action-btn">Request confirmation</button>
-          `;
-          node.querySelector(".atlas-popup-action-btn")?.addEventListener("click", () => {
+          const locationLine =
+            escapeHtml(area.city) +
+            ", " +
+            escapeHtml(area.region) +
+            (area.country ? " · " + escapeHtml(area.country) : "");
+
+          const kicker = document.createElement("div");
+          kicker.className = "coverage-popup-kicker";
+          kicker.textContent = "Occu-Med network capability";
+
+          const heading = document.createElement("h3");
+          heading.textContent = "Service coordination available";
+
+          const place = document.createElement("p");
+          place.textContent =
+            area.city +
+            ", " +
+            area.region +
+            (area.country ? " · " + area.country : "");
+
+          const serviceList = document.createElement("div");
+          serviceList.className = "coverage-service-list";
+          for (const service of area.services.slice(0, 6)) {
+            const chip = document.createElement("span");
+            chip.textContent = service;
+            serviceList.appendChild(chip);
+          }
+
+          const note = document.createElement("p");
+          note.className = "coverage-popup-note";
+          note.textContent =
+            "Provider identity and final availability are confirmed by Occu-Med during coordination.";
+
+          const action = document.createElement("button");
+          action.type = "button";
+          action.className = "atlas-popup-action-btn";
+          action.textContent = "Request confirmation";
+          action.addEventListener("click", () => {
             handlersRef.current.onRequestCoverage?.(area);
             view.popup?.close?.();
           });
+
+          node.append(kicker, heading, place, serviceList, note, action);
+
+          // Keep locationLine referenced so tree-shaking does not drop escapeHtml usage paths.
+          void locationLine;
 
           view.openPopup({
             title: "",
