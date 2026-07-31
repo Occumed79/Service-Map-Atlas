@@ -8,12 +8,14 @@
   background: #dceef7;
 }
 
+.atlas-arcgis-map arcgis-map,
 .atlas-arcgis-map .esri-view,
 .atlas-arcgis-map .esri-view-root,
 .atlas-arcgis-map .esri-view-surface,
 .atlas-arcgis-map canvas {
   width: 100% !important;
   height: 100% !important;
+  display: block;
 }
 
 .atlas-arcgis-map .esri-attribution {
