@@ -1,7 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { MapContainer, Marker, Popup, TileLayer, useMap } from "react-leaflet";
 import { useQuery } from "@tanstack/react-query";
-import L from "leaflet";
 import { ClipboardPlus, Info, Navigation, Search } from "lucide-react";
 import { useCreateServiceRequest, useRecordSearchEvent } from "@workspace/api-client-react";
 import { GlassPanel } from "@/components/ui/glass-panel";
@@ -14,6 +12,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
 import * as z from "zod";
+import { AtlasArcgisMap, type CoverageArea } from "@/components/atlas-arcgis-map";
 
 const SERVICE_CATEGORIES = [
   "Dental",
@@ -35,17 +34,6 @@ const SERVICE_CATEGORIES = [
   "Specialty Services",
 ];
 
-type CoverageArea = {
-  id: string;
-  city: string;
-  region: string;
-  country: string;
-  latitude: number;
-  longitude: number;
-  services: string[];
-  availability: "coordination_available";
-};
-
 const requestSchema = z.object({
   clientName: z.string().min(2, "Name is required"),
   clientEmail: z.string().email("Valid email required"),
@@ -56,46 +44,6 @@ const requestSchema = z.object({
   urgency: z.enum(["low", "normal", "high", "urgent"]),
   notes: z.string().optional(),
 });
-
-const SERVICE_COLORS: Record<string, string> = {
-  Dental: "#f07167",
-  "Chest X-Ray": "#4f8fcf",
-  "B-Reader": "#4f8fcf",
-  Spirometry: "#2a9d8f",
-  "Pulmonary Function Testing": "#2a9d8f",
-  "Drug Screen": "#7b61a8",
-  "DOT Physical": "#3a9b6f",
-  Audiogram: "#d08a38",
-  EKG: "#d95d67",
-  "Treadmill Stress Test": "#d95d67",
-  "Laboratory Services": "#7b61a8",
-  Titers: "#7b61a8",
-  Vaccinations: "#3a9b6f",
-  "Physical Examination": "#3a9b6f",
-  "Vision Testing": "#4f8fcf",
-  "Occupational Medicine": "#346b87",
-  "Specialty Services": "#6b7280",
-};
-
-function iconForCoverage(area: CoverageArea) {
-  const primaryService = area.services[0] ?? "Specialty Services";
-  const color = SERVICE_COLORS[primaryService] ?? SERVICE_COLORS["Specialty Services"];
-  return new L.DivIcon({
-    className: "coverage-marker-shell",
-    html: `<span class="coverage-marker" style="--coverage-color:${color}"><span class="coverage-marker-core"></span></span>`,
-    iconSize: [18, 18],
-    iconAnchor: [9, 9],
-    popupAnchor: [0, -12],
-  });
-}
-
-function MapUpdater({ center, zoom }: { center: [number, number]; zoom: number }) {
-  const map = useMap();
-  useEffect(() => {
-    map.flyTo(center, zoom, { duration: 1.15 });
-  }, [center, map, zoom]);
-  return null;
-}
 
 function distanceMiles(a: [number, number], b: [number, number]) {
   const toRadians = (value: number) => (value * Math.PI) / 180;
@@ -116,6 +64,8 @@ export default function Home() {
   const [requestOpen, setRequestOpen] = useState(false);
   const [selectedCoverage, setSelectedCoverage] = useState<CoverageArea | null>(null);
   const [searchLabel, setSearchLabel] = useState("Worldwide");
+  const [mapStatus, setMapStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [mapError, setMapError] = useState<string | null>(null);
   const { toast } = useToast();
   const recordSearch = useRecordSearchEvent();
 
@@ -181,56 +131,49 @@ export default function Home() {
     setRequestOpen(true);
   };
 
+  const handleMarkerClick = (area: CoverageArea) => {
+    recordSearch.mutate({
+      data: {
+        searchText: searchQuery || "map_coverage_selection",
+        selectedServiceType: selectedService,
+        geocodedCity: area.city,
+        geocodedState: area.region,
+        geocodedCountry: area.country,
+        latitude: area.latitude,
+        longitude: area.longitude,
+        matchingProviderCount: 1,
+        zeroResultSearch: false,
+        markerClicked: true,
+        requestSubmitted: false,
+      },
+    });
+  };
+
   return (
     <div className="atlas-shell">
-      <MapContainer center={mapCenter} zoom={mapZoom} className="atlas-map" zoomControl={false} minZoom={2} maxZoom={18}>
-        <TileLayer
-          url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}"
-          attribution="Tiles &copy; Esri"
-          maxZoom={18}
-        />
-        <MapUpdater center={mapCenter} zoom={mapZoom} />
+      <AtlasArcgisMap
+        center={mapCenter}
+        zoom={mapZoom}
+        coverageAreas={coverageAreas}
+        onMarkerClick={handleMarkerClick}
+        onRequestCoverage={openRequest}
+        onStatusChange={(status, message) => {
+          setMapStatus(status);
+          setMapError(message ?? null);
+        }}
+      />
 
-        {coverageAreas.map((area) => (
-          <Marker
-            key={area.id}
-            position={[area.latitude, area.longitude]}
-            icon={iconForCoverage(area)}
-            eventHandlers={{
-              click: () => {
-                recordSearch.mutate({
-                  data: {
-                    searchText: searchQuery || "map_coverage_selection",
-                    selectedServiceType: selectedService,
-                    geocodedCity: area.city,
-                    geocodedState: area.region,
-                    geocodedCountry: area.country,
-                    latitude: area.latitude,
-                    longitude: area.longitude,
-                    matchingProviderCount: 1,
-                    zeroResultSearch: false,
-                    markerClicked: true,
-                    requestSubmitted: false,
-                  },
-                });
-              },
-            }}
-          >
-            <Popup className="atlas-popup">
-              <div className="coverage-popup">
-                <div className="coverage-popup-kicker">Occu-Med network capability</div>
-                <h3>Service coordination available</h3>
-                <p>{area.city}, {area.region}{area.country ? ` · ${area.country}` : ""}</p>
-                <div className="coverage-service-list">
-                  {area.services.slice(0, 6).map((service) => <span key={service}>{service}</span>)}
-                </div>
-                <p className="coverage-popup-note">Provider identity and final availability are confirmed by Occu-Med during coordination.</p>
-                <Button className="w-full atlas-popup-action" size="sm" onClick={() => openRequest(area)}>Request confirmation</Button>
-              </div>
-            </Popup>
-          </Marker>
-        ))}
-      </MapContainer>
+      {mapStatus === "loading" && (
+        <div className="atlas-map-status" role="status">
+          Loading ArcGIS map…
+        </div>
+      )}
+
+      {mapStatus === "error" && (
+        <div className="atlas-map-status atlas-map-status-error" role="alert">
+          ArcGIS map failed to load{mapError ? `: ${mapError}` : "."} Ensure VITE_ARCGIS_API_KEY is set on the server and the webmap is accessible.
+        </div>
+      )}
 
       <header className="atlas-header atlas-header-search-only">
         <GlassPanel className="atlas-search-panel">
