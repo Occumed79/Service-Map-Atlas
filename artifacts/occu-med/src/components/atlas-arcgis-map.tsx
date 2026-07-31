@@ -2,6 +2,10 @@ import { useEffect, useRef } from "react";
 
 const ARCGIS_WEBMAP_ID = "7378ae8b471940cb9f9d114b67cd09b8";
 
+/** Floor zoom — matches the default world overview; blocks further zoom-out into empty tiles. */
+const MIN_ZOOM = 2;
+const MAX_ZOOM = 18;
+
 type ArcgisLoader = {
   import: (moduleIds: string | string[]) => Promise<any>;
 };
@@ -66,8 +70,22 @@ function waitForArcgisLoader(timeoutMs = 30_000): Promise<ArcgisLoader> {
 async function importModules(loader: ArcgisLoader, ids: string[]) {
   const result = await loader.import(ids);
   if (Array.isArray(result)) return result;
-  // Some CDN builds return a single module when one id is requested.
   return [result];
+}
+
+function clampZoom(zoom: number) {
+  return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoom));
+}
+
+function applyViewConstraints(view: any) {
+  const existing = view.constraints || {};
+  view.constraints = {
+    ...existing,
+    minZoom: MIN_ZOOM,
+    maxZoom: MAX_ZOOM,
+    rotationEnabled: false,
+    snapToZoom: false,
+  };
 }
 
 function syncCoverageGraphics(
@@ -158,14 +176,12 @@ export function AtlasArcgisMap({
         const loader = await waitForArcgisLoader();
         if (destroyed) return;
 
-        // Configure API key BEFORE creating the map element.
         const [esriConfig] = await importModules(loader, ["@arcgis/core/config.js"]);
         const apiKey = String(import.meta.env.VITE_ARCGIS_API_KEY || "").trim();
         if (apiKey) {
           esriConfig.apiKey = apiKey;
         }
 
-        // Wait until the custom element is defined by the CDN bundle.
         if (typeof customElements !== "undefined" && customElements.get("arcgis-map") == null) {
           await Promise.race([
             customElements.whenDefined("arcgis-map"),
@@ -197,11 +213,9 @@ export function AtlasArcgisMap({
         host.appendChild(mapEl);
         mapElRef.current = mapEl;
 
-        // Prefer the component lifecycle helper; fall back to view property.
         if (typeof mapEl.viewOnReady === "function") {
           await mapEl.viewOnReady();
         } else {
-          // Poll until the internal view exists.
           const readyDeadline = Date.now() + 25_000;
           while (!mapEl.view && Date.now() < readyDeadline) {
             await new Promise((r) => window.setTimeout(r, 50));
@@ -219,12 +233,23 @@ export function AtlasArcgisMap({
         }
         viewRef.current = view;
 
-        // Apply initial camera from React state.
+        applyViewConstraints(view);
+
         const { center: c, zoom: z } = centerZoomRef.current;
         try {
-          await view.goTo({ center: [c[1], c[0]], zoom: z }, { duration: 0 });
+          await view.goTo({ center: [c[1], c[0]], zoom: clampZoom(z) }, { duration: 0 });
         } catch {
           // ignore
+        }
+
+        // Re-assert min zoom after camera settle (webmap may temporarily lower it).
+        applyViewConstraints(view);
+        if (typeof view.zoom === "number" && view.zoom < MIN_ZOOM) {
+          try {
+            await view.goTo({ zoom: MIN_ZOOM }, { duration: 0 });
+          } catch {
+            // ignore
+          }
         }
 
         const graphicsLayer = new GraphicsLayer({ id: "coverage-areas", title: "Coverage" });
@@ -233,7 +258,6 @@ export function AtlasArcgisMap({
         } else if (view.map?.add) {
           view.map.add(graphicsLayer);
         } else {
-          view.graphics = view.graphics; // keep type happy
           throw new Error("Could not attach coverage GraphicsLayer to the WebMap");
         }
         graphicsLayerRef.current = graphicsLayer;
@@ -360,7 +384,7 @@ export function AtlasArcgisMap({
       .goTo(
         {
           center: [center[1], center[0]],
-          zoom,
+          zoom: clampZoom(zoom),
         },
         { duration: 900 },
       )
