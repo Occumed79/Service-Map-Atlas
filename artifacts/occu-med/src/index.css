@@ -1,6 +1,5 @@
 @import "tailwindcss";
 @import "tw-animate-css";
-@import "leaflet/dist/leaflet.css";
 @plugin "@tailwindcss/typography";
 
 @custom-variant dark (&:is(.dark *));
@@ -99,28 +98,6 @@
   width: 100%;
   height: 100%;
   background: #dcebf1;
-}
-
-.atlas-map::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: 400;
-  pointer-events: none;
-  background:
-    linear-gradient(180deg, rgba(237, 247, 250, 0.18) 0%, transparent 25%, transparent 72%, rgba(217, 233, 239, 0.2) 100%);
-  mix-blend-mode: soft-light;
-}
-
-.leaflet-tile-pane {
-  filter: saturate(1.08) contrast(1.01) brightness(1.02);
-}
-
-.leaflet-control-attribution {
-  border-radius: 10px 0 0 0;
-  background: rgba(255,255,255,0.72) !important;
-  color: #486273;
-  backdrop-filter: blur(12px);
 }
 
 .atlas-header {
@@ -282,49 +259,6 @@
   box-shadow: 0 10px 25px rgba(43,111,143,.23), inset 0 1px 0 rgba(255,255,255,.32);
 }
 
-.coverage-marker-shell { background: transparent !important; border: 0 !important; }
-
-.coverage-marker {
-  --coverage-color: #346b87;
-  width: 18px;
-  height: 18px;
-  display: grid;
-  place-items: center;
-  border-radius: 50%;
-  background: color-mix(in srgb, var(--coverage-color) 26%, white);
-  border: 1px solid rgba(255,255,255,.92);
-  box-shadow:
-    0 5px 14px color-mix(in srgb, var(--coverage-color) 38%, transparent),
-    0 0 0 5px color-mix(in srgb, var(--coverage-color) 13%, transparent),
-    inset 0 1px 1px rgba(255,255,255,.9);
-  animation: coverage-breathe 3.4s ease-in-out infinite;
-}
-
-.coverage-marker-core {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--coverage-color);
-  box-shadow: inset 0 1px 1px rgba(255,255,255,.45);
-}
-
-@keyframes coverage-breathe {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.08); }
-}
-
-.leaflet-popup-content-wrapper,
-.leaflet-popup-tip {
-  background: rgba(252,254,255,.92) !important;
-  color: #17384a !important;
-  border: 1px solid rgba(255,255,255,.96);
-  box-shadow: 0 22px 55px rgba(39,69,84,.22) !important;
-  backdrop-filter: blur(24px) saturate(150%);
-}
-
-.leaflet-popup-content-wrapper { border-radius: 20px !important; }
-.leaflet-popup-content { margin: 0 !important; width: 280px !important; }
-
 .coverage-popup { padding: 18px; }
 .coverage-popup-kicker {
   color: #557181;
@@ -428,5 +362,4 @@
   .atlas-summary-card { left: 10px; right: 10px; bottom: 108px; min-width: 0; }
   .atlas-request-button { right: 10px; bottom: 166px; height: 44px; }
   .atlas-disclaimer { bottom: 10px; width: calc(100% - 20px); max-height: 88px; overflow: auto; }
-  .leaflet-popup-content { width: 250px !important; }
 }
