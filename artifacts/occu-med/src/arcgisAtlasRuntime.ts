@@ -1,33 +1,40 @@
 import L from "leaflet";
 
-const ARCGIS_SDK_VERSION = "5.1";
 const ARCGIS_WEBMAP_ID = "7378ae8b471940cb9f9d114b67cd09b8";
-const ARCGIS_SCRIPT_ID = "occumed-arcgis-sdk";
-const ARCGIS_STYLE_ID = "occumed-arcgis-sdk-theme";
 
 type ArcgisLoader = {
   import: (moduleIds: string | string[]) => Promise<any>;
 };
 
+// ArcGIS SDK 5.x creates `$arcgis` as a module-global identifier. It is not
+// guaranteed to be a property of `window`, so reading `window.$arcgis` leaves
+// the Atlas permanently on its Leaflet fallback in browsers such as Safari.
+declare const $arcgis: ArcgisLoader | undefined;
+
 declare global {
   interface Window {
-    $arcgis?: ArcgisLoader;
     __occumedArcgisAtlasRuntimeInstalled?: boolean;
   }
 }
 
-function waitForArcgisLoader(timeoutMs = 15_000): Promise<ArcgisLoader> {
+function getArcgisLoader(): ArcgisLoader | null {
+  if (typeof $arcgis === "undefined" || typeof $arcgis?.import !== "function") return null;
+  return $arcgis;
+}
+
+function waitForArcgisLoader(timeoutMs = 20_000): Promise<ArcgisLoader> {
   return new Promise((resolve, reject) => {
     const startedAt = Date.now();
 
     const check = () => {
-      if (window.$arcgis?.import) {
-        resolve(window.$arcgis);
+      const loader = getArcgisLoader();
+      if (loader) {
+        resolve(loader);
         return;
       }
 
       if (Date.now() - startedAt >= timeoutMs) {
-        reject(new Error("ArcGIS Maps SDK did not initialize in time"));
+        reject(new Error("ArcGIS Maps SDK loaded without exposing the $arcgis module loader"));
         return;
       }
 
@@ -38,34 +45,12 @@ function waitForArcgisLoader(timeoutMs = 15_000): Promise<ArcgisLoader> {
   });
 }
 
-function ensureArcgisSdk(): Promise<ArcgisLoader> {
-  if (window.$arcgis?.import) return Promise.resolve(window.$arcgis);
-
-  if (!document.getElementById(ARCGIS_STYLE_ID)) {
-    const stylesheet = document.createElement("link");
-    stylesheet.id = ARCGIS_STYLE_ID;
-    stylesheet.rel = "stylesheet";
-    stylesheet.href = `https://js.arcgis.com/${ARCGIS_SDK_VERSION}/esri/themes/light/main.css`;
-    document.head.appendChild(stylesheet);
-  }
-
-  if (!document.getElementById(ARCGIS_SCRIPT_ID)) {
-    const script = document.createElement("script");
-    script.id = ARCGIS_SCRIPT_ID;
-    script.type = "module";
-    script.src = `https://js.arcgis.com/${ARCGIS_SDK_VERSION}/`;
-    script.crossOrigin = "anonymous";
-    document.head.appendChild(script);
-  }
-
-  return waitForArcgisLoader();
-}
-
 function installArcgisBasemap(leafletMap: L.Map): void {
   const container = leafletMap.getContainer();
   if (!container.classList.contains("atlas-map") || container.dataset.arcgisWebmapInstalled === "true") return;
 
   container.dataset.arcgisWebmapInstalled = "true";
+  container.dataset.arcgisStatus = "loading";
   container.classList.add("atlas-arcgis-loading");
 
   const host = document.createElement("div");
@@ -103,16 +88,16 @@ function installArcgisBasemap(leafletMap: L.Map): void {
     try {
       arcgisView?.destroy?.();
     } catch {
-      // The Leaflet map is already being destroyed; ArcGIS cleanup is best effort.
+      // Leaflet may already be disposing the shared map container.
     }
     host.remove();
   };
 
   leafletMap.once("unload", cleanup);
 
-  void ensureArcgisSdk()
-    .then(async ($arcgis) => {
-      const [esriConfig, WebMap, MapView] = await $arcgis.import([
+  void waitForArcgisLoader()
+    .then(async (loader) => {
+      const [esriConfig, WebMap, MapView] = await loader.import([
         "@arcgis/core/config.js",
         "@arcgis/core/WebMap.js",
         "@arcgis/core/views/MapView.js",
@@ -127,6 +112,12 @@ function installArcgisBasemap(leafletMap: L.Map): void {
       const webMap = new WebMap({
         portalItem: { id: ARCGIS_WEBMAP_ID },
       });
+
+      // Force the portal item and all basemap dependencies to resolve before
+      // hiding the Leaflet fallback. A failed item/key request therefore cannot
+      // look like a successful deployment.
+      await webMap.load();
+      if (destroyed) return;
 
       arcgisView = new MapView({
         container: host,
@@ -147,9 +138,11 @@ function installArcgisBasemap(leafletMap: L.Map): void {
       await arcgisView.when();
       if (destroyed) return;
 
-      container.classList.remove("atlas-arcgis-loading");
+      container.classList.remove("atlas-arcgis-loading", "atlas-arcgis-error");
       container.classList.add("atlas-arcgis-ready");
+      container.dataset.arcgisStatus = "ready";
       container.dataset.arcgisWebmapId = ARCGIS_WEBMAP_ID;
+      delete container.dataset.arcgisError;
 
       leafletMap.on("move zoom moveend zoomend resize", scheduleSync);
       resizeObserver = new ResizeObserver(() => {
@@ -159,10 +152,13 @@ function installArcgisBasemap(leafletMap: L.Map): void {
       resizeObserver.observe(container);
       scheduleSync();
     })
-    .catch((error) => {
-      console.error("Occu-Med Atlas ArcGIS WebMap failed to load; retaining the existing fallback map.", error);
-      container.classList.remove("atlas-arcgis-loading");
+    .catch((error: unknown) => {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error("Occu-Med Atlas ArcGIS WebMap failed to load.", error);
+      container.classList.remove("atlas-arcgis-loading", "atlas-arcgis-ready");
       container.classList.add("atlas-arcgis-error");
+      container.dataset.arcgisStatus = "error";
+      container.dataset.arcgisError = message.slice(0, 240);
       host.remove();
     });
 }
