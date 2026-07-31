@@ -39,7 +39,6 @@ export default defineConfig({
       output: {
         manualChunks: {
           react: ["react", "react-dom", "wouter"],
-          map: ["leaflet", "react-leaflet"],
           query: ["@tanstack/react-query"],
           motion: ["framer-motion"],
         },
