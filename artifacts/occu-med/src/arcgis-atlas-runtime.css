@@ -18,16 +18,23 @@
   display: block;
 }
 
-/* Stronger color without changing the ArcGIS webmap style itself */
+/*
+  denser perceived detail:
+  - high qualityProfile is set in JS
+  - canvas avoids soft browser upscaling
+  - mild color grade for clarity
+*/
 .atlas-arcgis-map .esri-view-surface,
 .atlas-arcgis-map canvas {
-  filter: saturate(1.28) contrast(1.08) brightness(1.02);
+  image-rendering: auto;
+  -webkit-font-smoothing: antialiased;
+  filter: saturate(1.28) contrast(1.1) brightness(1.03);
 }
 
 @media (prefers-reduced-motion: reduce) {
   .atlas-arcgis-map .esri-view-surface,
   .atlas-arcgis-map canvas {
-    filter: saturate(1.15) contrast(1.04);
+    filter: saturate(1.15) contrast(1.05);
   }
 }
 
