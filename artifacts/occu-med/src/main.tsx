@@ -1,5 +1,4 @@
 import { createRoot } from "react-dom/client";
-import "./arcgisAtlasRuntime";
 import App from "./App";
 import "./index.css";
 import "./client-polish.css";
