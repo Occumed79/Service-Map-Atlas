@@ -1,0 +1,52 @@
+.atlas-map {
+  position: relative;
+  isolation: isolate;
+}
+
+.atlas-arcgis-webmap {
+  position: absolute;
+  inset: 0;
+  z-index: 150;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 360ms ease;
+  background: #dceef7;
+}
+
+.atlas-map.atlas-arcgis-ready .atlas-arcgis-webmap {
+  opacity: 1;
+}
+
+.atlas-map.atlas-arcgis-ready .leaflet-tile-pane {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.atlas-map.atlas-arcgis-ready .leaflet-control-attribution {
+  display: none !important;
+}
+
+.atlas-arcgis-webmap .esri-view,
+.atlas-arcgis-webmap .esri-view-root,
+.atlas-arcgis-webmap .esri-view-surface,
+.atlas-arcgis-webmap canvas {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.atlas-arcgis-webmap .esri-attribution {
+  pointer-events: none;
+  font-size: 10px;
+  background: rgba(255, 255, 255, 0.76);
+  backdrop-filter: blur(10px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .atlas-arcgis-webmap {
+    transition: none;
+  }
+}
