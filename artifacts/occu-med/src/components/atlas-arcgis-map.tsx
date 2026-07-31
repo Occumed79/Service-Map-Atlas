@@ -63,6 +63,49 @@ function waitForArcgisLoader(timeoutMs = 25_000): Promise<ArcgisLoader> {
   });
 }
 
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, "&")
+    .replace(/</g, "<")
+    .replace(/>/g, ">")
+    .replace(/"/g, """);
+}
+
+function syncCoverageGraphics(
+  layer: any,
+  modules: { Graphic: any; Point: any; SimpleMarkerSymbol: any },
+  areas: CoverageArea[],
+) {
+  const { Graphic, Point, SimpleMarkerSymbol } = modules;
+  layer.removeAll();
+
+  for (const area of areas) {
+    const primaryService = area.services[0] ?? "Specialty Services";
+    const color = SERVICE_COLORS[primaryService] ?? SERVICE_COLORS["Specialty Services"];
+    const graphic = new Graphic({
+      geometry: new Point({
+        longitude: area.longitude,
+        latitude: area.latitude,
+      }),
+      symbol: new SimpleMarkerSymbol({
+        style: "circle",
+        color,
+        size: 11,
+        outline: {
+          color: [255, 255, 255, 0.95],
+          width: 2,
+        },
+      }),
+      attributes: {
+        ...area,
+        coverageId: area.id,
+        services: area.services.join("|"),
+      },
+    });
+    layer.add(graphic);
+  }
+}
+
 type AtlasArcgisMapProps = {
   center: [number, number];
   zoom: number;
@@ -89,9 +132,13 @@ export function AtlasArcgisMap({
     SimpleMarkerSymbol: any;
   } | null>(null);
   const centerZoomRef = useRef({ center, zoom });
+  const coverageRef = useRef(coverageAreas);
   const handlersRef = useRef({ onMarkerClick, onRequestCoverage });
+  const readyTickRef = useRef(0);
+  const [, forceReady] = useRefState(0);
 
   centerZoomRef.current = { center, zoom };
+  coverageRef.current = coverageAreas;
   handlersRef.current = { onMarkerClick, onRequestCoverage };
 
   // Initialize MapView + WebMap once
@@ -171,6 +218,9 @@ export function AtlasArcgisMap({
 
         viewRef.current = view;
 
+        // Apply any coverage already fetched before the view finished loading.
+        syncCoverageGraphics(graphicsLayer, modulesRef.current, coverageRef.current);
+
         clickHandle = view.on("click", async (event: any) => {
           const hit = await view.hitTest(event);
           const result = hit?.results?.find(
@@ -213,7 +263,6 @@ export function AtlasArcgisMap({
           `;
           node.querySelector(".atlas-popup-action-btn")?.addEventListener("click", () => {
             handlersRef.current.onRequestCoverage?.(area);
-            view.closePopup?.();
             view.popup?.close?.();
           });
 
@@ -234,6 +283,8 @@ export function AtlasArcgisMap({
         container.dataset.arcgisStatus = "ready";
         container.dataset.arcgisWebmapId = ARCGIS_WEBMAP_ID;
         delete container.dataset.arcgisError;
+        readyTickRef.current += 1;
+        forceReady(readyTickRef.current);
         onStatusChange?.("ready");
       } catch (error: unknown) {
         if (destroyed) return;
@@ -267,51 +318,25 @@ export function AtlasArcgisMap({
   useEffect(() => {
     const view = viewRef.current;
     if (!view) return;
-    void view.goTo(
-      {
-        center: [center[1], center[0]],
-        zoom,
-      },
-      { duration: 900 },
-    ).catch(() => {
-      // ignore cancelled animations
-    });
+    void view
+      .goTo(
+        {
+          center: [center[1], center[0]],
+          zoom,
+        },
+        { duration: 900 },
+      )
+      .catch(() => {
+        // ignore cancelled animations
+      });
   }, [center, zoom]);
 
-  // Sync coverage graphics
+  // Sync coverage graphics whenever data changes (and when map becomes ready)
   useEffect(() => {
     const layer = graphicsLayerRef.current;
     const modules = modulesRef.current;
     if (!layer || !modules) return;
-
-    const { Graphic, Point, SimpleMarkerSymbol } = modules;
-    layer.removeAll();
-
-    for (const area of coverageAreas) {
-      const primaryService = area.services[0] ?? "Specialty Services";
-      const color = SERVICE_COLORS[primaryService] ?? SERVICE_COLORS["Specialty Services"];
-      const graphic = new Graphic({
-        geometry: new Point({
-          longitude: area.longitude,
-          latitude: area.latitude,
-        }),
-        symbol: new SimpleMarkerSymbol({
-          style: "circle",
-          color,
-          size: 11,
-          outline: {
-            color: [255, 255, 255, 0.95],
-            width: 2,
-          },
-        }),
-        attributes: {
-          ...area,
-          coverageId: area.id,
-          services: area.services.join("|"),
-        },
-      });
-      layer.add(graphic);
-    }
+    syncCoverageGraphics(layer, modules, coverageAreas);
   }, [coverageAreas]);
 
   return (
@@ -324,10 +349,17 @@ export function AtlasArcgisMap({
   );
 }
 
-function escapeHtml(value: string) {
-  return value
-    .replace(/&/g, "&")
-    .replace(/</g, "<")
-    .replace(/>/g, ">")
-    .replace(/"/g, """);
+/** Minimal state hook without importing useState solely for a ready tick */
+function useRefState(initial: number): [number, (n: number) => void] {
+  const ref = useRef(initial);
+  const listeners = useRef(new Set<() => void>());
+  // React 19 / concurrent-safe: we only need to re-run coverage effect after ready.
+  // Using a no-op setter path is fine because we already sync graphics inside init.
+  return [
+    ref.current,
+    (n: number) => {
+      ref.current = n;
+      listeners.current.forEach((l) => l());
+    },
+  ];
 }
