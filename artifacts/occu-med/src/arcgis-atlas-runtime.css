@@ -30,16 +30,6 @@
   display: none !important;
 }
 
-.atlas-map .leaflet-overlay-pane,
-.atlas-map .leaflet-shadow-pane,
-.atlas-map .leaflet-marker-pane,
-.atlas-map .leaflet-tooltip-pane,
-.atlas-map .leaflet-popup-pane,
-.atlas-map .leaflet-control-container {
-  position: relative;
-  z-index: 400;
-}
-
 .atlas-arcgis-webmap .esri-view,
 .atlas-arcgis-webmap .esri-view-root,
 .atlas-arcgis-webmap .esri-view-surface,
