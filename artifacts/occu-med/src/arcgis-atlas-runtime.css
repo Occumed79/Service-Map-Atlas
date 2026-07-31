@@ -1,6 +1,7 @@
 .atlas-map {
   position: relative;
   isolation: isolate;
+  background: #dceef7;
 }
 
 .atlas-arcgis-webmap {
@@ -11,41 +12,27 @@
   height: 100%;
   overflow: hidden;
   pointer-events: none;
-  opacity: 0;
-  transition: opacity 360ms ease;
+  opacity: 1;
   background: #dceef7;
 }
 
-.atlas-map.atlas-arcgis-ready .atlas-arcgis-webmap {
-  opacity: 1;
-}
-
-.atlas-map.atlas-arcgis-ready .leaflet-tile-pane {
-  opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
-}
-
-.atlas-map.atlas-arcgis-ready .leaflet-control-attribution {
+/* The Leaflet basemap fallback is intentionally disabled in every state. */
+.atlas-map .leaflet-tile-pane,
+.atlas-map .leaflet-control-attribution {
   display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
 }
 
-.atlas-map.atlas-arcgis-error::after {
-  content: "ArcGIS map failed to load — Leaflet fallback active";
-  position: absolute;
-  right: 14px;
-  bottom: 42px;
-  z-index: 1200;
-  max-width: min(360px, calc(100% - 28px));
-  padding: 8px 12px;
-  border: 1px solid rgba(153, 27, 27, 0.35);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.92);
-  color: #991b1b;
-  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.15);
-  backdrop-filter: blur(14px);
-  font: 600 11px/1.2 Inter, system-ui, sans-serif;
-  pointer-events: none;
+.atlas-map .leaflet-overlay-pane,
+.atlas-map .leaflet-shadow-pane,
+.atlas-map .leaflet-marker-pane,
+.atlas-map .leaflet-tooltip-pane,
+.atlas-map .leaflet-popup-pane,
+.atlas-map .leaflet-control-container {
+  position: relative;
+  z-index: 400;
 }
 
 .atlas-arcgis-webmap .esri-view,
@@ -61,10 +48,4 @@
   font-size: 10px;
   background: rgba(255, 255, 255, 0.76);
   backdrop-filter: blur(10px);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .atlas-arcgis-webmap {
-    transition: none;
-  }
 }
