@@ -4,7 +4,6 @@ const ARCGIS_SDK_VERSION = "5.1";
 const ARCGIS_WEBMAP_ID = "7378ae8b471940cb9f9d114b67cd09b8";
 const ARCGIS_SCRIPT_ID = "occumed-arcgis-sdk";
 const ARCGIS_STYLE_ID = "occumed-arcgis-sdk-theme";
-const RUNTIME_FLAG = "__occumedArcgisAtlasRuntimeInstalled";
 
 type ArcgisLoader = {
   import: (moduleIds: string | string[]) => Promise<any>;
@@ -13,7 +12,7 @@ type ArcgisLoader = {
 declare global {
   interface Window {
     $arcgis?: ArcgisLoader;
-    [RUNTIME_FLAG]?: boolean;
+    __occumedArcgisAtlasRuntimeInstalled?: boolean;
   }
 }
 
@@ -50,8 +49,7 @@ function ensureArcgisSdk(): Promise<ArcgisLoader> {
     document.head.appendChild(stylesheet);
   }
 
-  const existingScript = document.getElementById(ARCGIS_SCRIPT_ID) as HTMLScriptElement | null;
-  if (!existingScript) {
+  if (!document.getElementById(ARCGIS_SCRIPT_ID)) {
     const script = document.createElement("script");
     script.id = ARCGIS_SCRIPT_ID;
     script.type = "module";
@@ -149,10 +147,6 @@ function installArcgisBasemap(leafletMap: L.Map): void {
       await arcgisView.when();
       if (destroyed) return;
 
-      arcgisView.navigation.mouseWheelZoomEnabled = false;
-      arcgisView.navigation.browserTouchPanEnabled = false;
-      arcgisView.navigation.momentumEnabled = false;
-
       container.classList.remove("atlas-arcgis-loading");
       container.classList.add("atlas-arcgis-ready");
       container.dataset.arcgisWebmapId = ARCGIS_WEBMAP_ID;
@@ -174,8 +168,8 @@ function installArcgisBasemap(leafletMap: L.Map): void {
 }
 
 export function installArcgisAtlasRuntime(): void {
-  if (window[RUNTIME_FLAG]) return;
-  window[RUNTIME_FLAG] = true;
+  if (window.__occumedArcgisAtlasRuntimeInstalled) return;
+  window.__occumedArcgisAtlasRuntimeInstalled = true;
 
   L.Map.addInitHook(function arcgisAtlasInitHook(this: L.Map) {
     window.queueMicrotask(() => installArcgisBasemap(this));
