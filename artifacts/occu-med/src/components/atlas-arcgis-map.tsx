@@ -44,7 +44,7 @@ function getArcgisLoader(): ArcgisLoader | null {
   return $arcgis;
 }
 
-function waitForArcgisLoader(timeoutMs = 25_000): Promise<ArcgisLoader> {
+function waitForArcgisLoader(timeoutMs = 30_000): Promise<ArcgisLoader> {
   return new Promise((resolve, reject) => {
     const startedAt = Date.now();
     const check = () => {
@@ -63,17 +63,11 @@ function waitForArcgisLoader(timeoutMs = 25_000): Promise<ArcgisLoader> {
   });
 }
 
-function escapeHtml(value: string) {
-  // Build entities without embedding literal HTML entity text in source.
-  const amp = "&" + "amp;";
-  const lt = "&" + "lt;";
-  const gt = "&" + "gt;";
-  const quot = "&" + "quot;";
-  return value
-    .replace(/&/g, amp)
-    .replace(/</g, lt)
-    .replace(/>/g, gt)
-    .replace(/"/g, quot);
+async function importModules(loader: ArcgisLoader, ids: string[]) {
+  const result = await loader.import(ids);
+  if (Array.isArray(result)) return result;
+  // Some CDN builds return a single module when one id is requested.
+  return [result];
 }
 
 function syncCoverageGraphics(
@@ -128,7 +122,8 @@ export function AtlasArcgisMap({
   onRequestCoverage,
   onStatusChange,
 }: AtlasArcgisMapProps) {
-  const containerRef = useRef<HTMLDivElement | null>(null);
+  const hostRef = useRef<HTMLDivElement | null>(null);
+  const mapElRef = useRef<any>(null);
   const viewRef = useRef<any>(null);
   const graphicsLayerRef = useRef<any>(null);
   const modulesRef = useRef<{
@@ -146,79 +141,102 @@ export function AtlasArcgisMap({
 
   useEffect(() => {
     let destroyed = false;
-    let resizeObserver: ResizeObserver | null = null;
     let clickHandle: { remove: () => void } | null = null;
+    let resizeObserver: ResizeObserver | null = null;
 
-    const container = containerRef.current;
-    if (!container) return;
+    const host = hostRef.current;
+    if (!host) return;
 
     onStatusChange?.("loading");
-    container.dataset.arcgisStatus = "loading";
-    container.classList.add("atlas-arcgis-loading");
-    container.classList.remove("atlas-arcgis-ready", "atlas-arcgis-error");
+    host.dataset.arcgisStatus = "loading";
+    host.classList.add("atlas-arcgis-loading");
+    host.classList.remove("atlas-arcgis-ready", "atlas-arcgis-error");
+    host.replaceChildren();
 
     void (async () => {
       try {
         const loader = await waitForArcgisLoader();
         if (destroyed) return;
 
-        const [esriConfig, WebMap, MapView, GraphicsLayer, Graphic, Point, SimpleMarkerSymbol] =
-          await loader.import([
-            "@arcgis/core/config.js",
-            "@arcgis/core/WebMap.js",
-            "@arcgis/core/views/MapView.js",
-            "@arcgis/core/layers/GraphicsLayer.js",
-            "@arcgis/core/Graphic.js",
-            "@arcgis/core/geometry/Point.js",
-            "@arcgis/core/symbols/SimpleMarkerSymbol.js",
-          ]);
-
-        if (destroyed) return;
-
+        // Configure API key BEFORE creating the map element.
+        const [esriConfig] = await importModules(loader, ["@arcgis/core/config.js"]);
         const apiKey = String(import.meta.env.VITE_ARCGIS_API_KEY || "").trim();
         if (apiKey) {
           esriConfig.apiKey = apiKey;
         }
 
-        modulesRef.current = { Graphic, Point, SimpleMarkerSymbol };
-
-        const { center: c, zoom: z } = centerZoomRef.current;
-        const webMap = new WebMap({
-          portalItem: { id: ARCGIS_WEBMAP_ID },
-        });
-
-        await webMap.load();
+        // Wait until the custom element is defined by the CDN bundle.
+        if (typeof customElements !== "undefined" && customElements.get("arcgis-map") == null) {
+          await Promise.race([
+            customElements.whenDefined("arcgis-map"),
+            new Promise((_, reject) =>
+              window.setTimeout(
+                () => reject(new Error("arcgis-map custom element did not register")),
+                20_000,
+              ),
+            ),
+          ]);
+        }
         if (destroyed) return;
 
-        const graphicsLayer = new GraphicsLayer({ id: "coverage-areas", title: "Coverage" });
-        webMap.add(graphicsLayer);
-        graphicsLayerRef.current = graphicsLayer;
+        const [GraphicsLayer, Graphic, Point, SimpleMarkerSymbol] = await importModules(loader, [
+          "@arcgis/core/layers/GraphicsLayer.js",
+          "@arcgis/core/Graphic.js",
+          "@arcgis/core/geometry/Point.js",
+          "@arcgis/core/symbols/SimpleMarkerSymbol.js",
+        ]);
+        if (destroyed) return;
 
-        const view = new MapView({
-          container,
-          map: webMap,
-          center: [c[1], c[0]],
-          zoom: z,
-          rotation: 0,
-          popupEnabled: true,
-          constraints: {
-            snapToZoom: false,
-            rotationEnabled: false,
-            minZoom: 2,
-            maxZoom: 18,
-          },
-          ui: {
-            components: ["attribution"],
-          },
-        });
+        modulesRef.current = { Graphic, Point, SimpleMarkerSymbol };
 
-        await view.when();
-        if (destroyed) {
-          view.destroy();
-          return;
+        const mapEl = document.createElement("arcgis-map") as any;
+        mapEl.setAttribute("item-id", ARCGIS_WEBMAP_ID);
+        mapEl.style.width = "100%";
+        mapEl.style.height = "100%";
+        mapEl.style.display = "block";
+        host.appendChild(mapEl);
+        mapElRef.current = mapEl;
+
+        // Prefer the component lifecycle helper; fall back to view property.
+        if (typeof mapEl.viewOnReady === "function") {
+          await mapEl.viewOnReady();
+        } else {
+          // Poll until the internal view exists.
+          const readyDeadline = Date.now() + 25_000;
+          while (!mapEl.view && Date.now() < readyDeadline) {
+            await new Promise((r) => window.setTimeout(r, 50));
+          }
+          if (!mapEl.view) {
+            throw new Error("arcgis-map view did not become ready");
+          }
+          await mapEl.view.when();
+        }
+        if (destroyed) return;
+
+        const view = mapEl.view;
+        if (!view) {
+          throw new Error("arcgis-map did not expose a MapView");
+        }
+        viewRef.current = view;
+
+        // Apply initial camera from React state.
+        const { center: c, zoom: z } = centerZoomRef.current;
+        try {
+          await view.goTo({ center: [c[1], c[0]], zoom: z }, { duration: 0 });
+        } catch {
+          // ignore
         }
 
-        viewRef.current = view;
+        const graphicsLayer = new GraphicsLayer({ id: "coverage-areas", title: "Coverage" });
+        if (mapEl.map?.add) {
+          mapEl.map.add(graphicsLayer);
+        } else if (view.map?.add) {
+          view.map.add(graphicsLayer);
+        } else {
+          view.graphics = view.graphics; // keep type happy
+          throw new Error("Could not attach coverage GraphicsLayer to the WebMap");
+        }
+        graphicsLayerRef.current = graphicsLayer;
         syncCoverageGraphics(graphicsLayer, modulesRef.current, coverageRef.current);
 
         clickHandle = view.on("click", async (event: any) => {
@@ -246,18 +264,8 @@ export function AtlasArcgisMap({
 
           handlersRef.current.onMarkerClick?.(area);
 
-          const servicesHtml = area.services
-            .slice(0, 6)
-            .map((s) => "<span>" + escapeHtml(s) + "</span>")
-            .join("");
-
           const node = document.createElement("div");
           node.className = "coverage-popup";
-          const locationLine =
-            escapeHtml(area.city) +
-            ", " +
-            escapeHtml(area.region) +
-            (area.country ? " · " + escapeHtml(area.country) : "");
 
           const kicker = document.createElement("div");
           kicker.className = "coverage-popup-kicker";
@@ -297,9 +305,6 @@ export function AtlasArcgisMap({
 
           node.append(kicker, heading, place, serviceList, note, action);
 
-          // Keep locationLine referenced so tree-shaking does not drop escapeHtml usage paths.
-          void locationLine;
-
           view.openPopup({
             title: "",
             location: result.graphic.geometry,
@@ -310,22 +315,22 @@ export function AtlasArcgisMap({
         resizeObserver = new ResizeObserver(() => {
           view.resize?.();
         });
-        resizeObserver.observe(container);
+        resizeObserver.observe(host);
 
-        container.classList.remove("atlas-arcgis-loading", "atlas-arcgis-error");
-        container.classList.add("atlas-arcgis-ready");
-        container.dataset.arcgisStatus = "ready";
-        container.dataset.arcgisWebmapId = ARCGIS_WEBMAP_ID;
-        delete container.dataset.arcgisError;
+        host.classList.remove("atlas-arcgis-loading", "atlas-arcgis-error");
+        host.classList.add("atlas-arcgis-ready");
+        host.dataset.arcgisStatus = "ready";
+        host.dataset.arcgisWebmapId = ARCGIS_WEBMAP_ID;
+        delete host.dataset.arcgisError;
         onStatusChange?.("ready");
       } catch (error: unknown) {
         if (destroyed) return;
         const message = error instanceof Error ? error.message : String(error);
         console.error("Occu-Med Atlas ArcGIS WebMap failed to load.", error);
-        container.classList.remove("atlas-arcgis-loading", "atlas-arcgis-ready");
-        container.classList.add("atlas-arcgis-error");
-        container.dataset.arcgisStatus = "error";
-        container.dataset.arcgisError = message.slice(0, 240);
+        host.classList.remove("atlas-arcgis-loading", "atlas-arcgis-ready");
+        host.classList.add("atlas-arcgis-error");
+        host.dataset.arcgisStatus = "error";
+        host.dataset.arcgisError = message.slice(0, 240);
         onStatusChange?.("error", message);
       }
     })();
@@ -335,13 +340,15 @@ export function AtlasArcgisMap({
       clickHandle?.remove?.();
       resizeObserver?.disconnect();
       try {
-        viewRef.current?.destroy?.();
+        mapElRef.current?.remove?.();
       } catch {
-        // ignore dispose races
+        // ignore
       }
+      mapElRef.current = null;
       viewRef.current = null;
       graphicsLayerRef.current = null;
       modulesRef.current = null;
+      host.replaceChildren();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- mount once
   }, []);
@@ -371,7 +378,7 @@ export function AtlasArcgisMap({
 
   return (
     <div
-      ref={containerRef}
+      ref={hostRef}
       className="atlas-map atlas-arcgis-map"
       role="application"
       aria-label="Occu-Med coverage map"
