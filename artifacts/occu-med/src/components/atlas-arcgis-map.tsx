@@ -88,6 +88,28 @@ function applyViewConstraints(view: any) {
   };
 }
 
+/** Prefer the densest pixel sampling ArcGIS will give on this device. */
+function applyHighPixelQuality(view: any, mapEl: any) {
+  try {
+    // ArcGIS quality profile: high = sharper labels, denser features, better AA.
+    if ("qualityProfile" in view) {
+      view.qualityProfile = "high";
+    }
+    if (mapEl && "qualityProfile" in mapEl) {
+      mapEl.qualityProfile = "high";
+    }
+  } catch {
+    // older builds may not expose this
+  }
+
+  // Force a resize so the view re-samples at devicePixelRatio after profile change.
+  try {
+    view.resize?.();
+  } catch {
+    // ignore
+  }
+}
+
 function syncCoverageGraphics(
   layer: any,
   modules: { Graphic: any; Point: any; SimpleMarkerSymbol: any },
@@ -210,6 +232,12 @@ export function AtlasArcgisMap({
         mapEl.style.width = "100%";
         mapEl.style.height = "100%";
         mapEl.style.display = "block";
+        // Hint high quality before the internal view boots when supported.
+        try {
+          mapEl.qualityProfile = "high";
+        } catch {
+          // ignore
+        }
         host.appendChild(mapEl);
         mapElRef.current = mapEl;
 
@@ -234,6 +262,7 @@ export function AtlasArcgisMap({
         viewRef.current = view;
 
         applyViewConstraints(view);
+        applyHighPixelQuality(view, mapEl);
 
         const { center: c, zoom: z } = centerZoomRef.current;
         try {
@@ -242,8 +271,8 @@ export function AtlasArcgisMap({
           // ignore
         }
 
-        // Re-assert min zoom after camera settle (webmap may temporarily lower it).
         applyViewConstraints(view);
+        applyHighPixelQuality(view, mapEl);
         if (typeof view.zoom === "number" && view.zoom < MIN_ZOOM) {
           try {
             await view.goTo({ zoom: MIN_ZOOM }, { duration: 0 });
