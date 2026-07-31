@@ -134,14 +134,11 @@ export function AtlasArcgisMap({
   const centerZoomRef = useRef({ center, zoom });
   const coverageRef = useRef(coverageAreas);
   const handlersRef = useRef({ onMarkerClick, onRequestCoverage });
-  const readyTickRef = useRef(0);
-  const [, forceReady] = useRefState(0);
 
   centerZoomRef.current = { center, zoom };
   coverageRef.current = coverageAreas;
   handlersRef.current = { onMarkerClick, onRequestCoverage };
 
-  // Initialize MapView + WebMap once
   useEffect(() => {
     let destroyed = false;
     let resizeObserver: ResizeObserver | null = null;
@@ -217,8 +214,6 @@ export function AtlasArcgisMap({
         }
 
         viewRef.current = view;
-
-        // Apply any coverage already fetched before the view finished loading.
         syncCoverageGraphics(graphicsLayer, modulesRef.current, coverageRef.current);
 
         clickHandle = view.on("click", async (event: any) => {
@@ -283,8 +278,6 @@ export function AtlasArcgisMap({
         container.dataset.arcgisStatus = "ready";
         container.dataset.arcgisWebmapId = ARCGIS_WEBMAP_ID;
         delete container.dataset.arcgisError;
-        readyTickRef.current += 1;
-        forceReady(readyTickRef.current);
         onStatusChange?.("ready");
       } catch (error: unknown) {
         if (destroyed) return;
@@ -314,7 +307,6 @@ export function AtlasArcgisMap({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- mount once
   }, []);
 
-  // Sync camera from search / external state
   useEffect(() => {
     const view = viewRef.current;
     if (!view) return;
@@ -331,7 +323,6 @@ export function AtlasArcgisMap({
       });
   }, [center, zoom]);
 
-  // Sync coverage graphics whenever data changes (and when map becomes ready)
   useEffect(() => {
     const layer = graphicsLayerRef.current;
     const modules = modulesRef.current;
@@ -347,19 +338,4 @@ export function AtlasArcgisMap({
       aria-label="Occu-Med coverage map"
     />
   );
-}
-
-/** Minimal state hook without importing useState solely for a ready tick */
-function useRefState(initial: number): [number, (n: number) => void] {
-  const ref = useRef(initial);
-  const listeners = useRef(new Set<() => void>());
-  // React 19 / concurrent-safe: we only need to re-run coverage effect after ready.
-  // Using a no-op setter path is fine because we already sync graphics inside init.
-  return [
-    ref.current,
-    (n: number) => {
-      ref.current = n;
-      listeners.current.forEach((l) => l());
-    },
-  ];
 }
