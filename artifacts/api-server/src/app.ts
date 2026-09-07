@@ -49,8 +49,12 @@ app.use(
     credentials: true,
   }),
 );
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+
+// Provider bulk imports include capability/coverage notes for hundreds of rows.
+// Express defaults JSON bodies to ~100 KB, which rejects a valid Atlas import
+// before the bulk route is reached. Keep a bounded but import-safe ceiling.
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
 app.get("/api/health", (_req, res) => {
   res.status(200).json({ ok: true, service: `service-map-atlas-${appMode}`, awake: true });
