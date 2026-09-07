@@ -145,7 +145,7 @@ export default function AdminProviders() {
   const geocodeAddress = async () => {
     const query = [form.address, form.city, form.state, form.postalCode, form.country].filter(Boolean).join(", ");
     if (!query) {
-      toast({ title: "Enter an address first" });
+      toast({ title: "Enter a city, state/region, or country first" });
       return;
     }
 
@@ -158,7 +158,7 @@ export default function AdminProviders() {
       const results = await response.json();
       const match = results?.[0];
       if (!match) {
-        toast({ title: "Address not found", description: "Enter coordinates manually or refine the address." });
+        toast({ title: "Location not found", description: "Enter coordinates manually or refine the city/region information." });
         return;
       }
 
@@ -182,7 +182,7 @@ export default function AdminProviders() {
   const handleCreate = () => {
     const latitude = Number(form.latitude);
     const longitude = Number(form.longitude);
-    if (!form.name || !form.address || !form.city || !form.state || !form.country) {
+    if (!form.name || !form.city || !form.state || !form.country) {
       toast({ title: "Complete the required provider and location fields", variant: "destructive" });
       return;
     }
@@ -198,7 +198,7 @@ export default function AdminProviders() {
     createProvider.mutate({
       data: {
         name: form.name,
-        address: form.address,
+        address: form.address.trim(),
         city: form.city,
         state: form.state,
         country: form.country,
@@ -261,7 +261,6 @@ export default function AdminProviders() {
 
         const rowProblems: string[] = [];
         if (!name) rowProblems.push("provider name");
-        if (!address) rowProblems.push("street address");
         if (!city) rowProblems.push("city");
         if (!state) rowProblems.push("state/region");
         if (!Number.isFinite(latitude)) rowProblems.push("valid latitude");
@@ -308,14 +307,12 @@ export default function AdminProviders() {
     try {
       const XLSX = await loadSpreadsheetModule();
       const sheet = XLSX.utils.json_to_sheet([{
-        "Provider Name": "Example Clinic",
-        "Street Address": "123 Main Street",
+        "Provider Name": "Anonymous Provider 001",
         City: "Fresno",
         "State / Region": "CA",
         Country: "US",
-        "Postal Code": "93721",
-        Latitude: "36.7378",
-        Longitude: "-119.7871",
+        Latitude: "36.7",
+        Longitude: "-119.8",
         Phone: "",
         Email: "",
         Website: "",
@@ -339,17 +336,23 @@ export default function AdminProviders() {
     }
 
     setIsUploading(true);
+    let createdCount = 0;
     try {
-      const response = await fetch("/api/providers/bulk", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ providers: bulkRows }),
-      });
-      const payload = await response.json().catch(() => null) as { createdCount?: number; error?: string } | null;
-      if (!response.ok) throw new Error(payload?.error || "Bulk import failed");
+      const batchSize = 1000;
+      for (let start = 0; start < bulkRows.length; start += batchSize) {
+        const batch = bulkRows.slice(start, start + batchSize);
+        const response = await fetch("/api/providers/bulk", {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ providers: batch }),
+        });
+        const payload = await response.json().catch(() => null) as { createdCount?: number; error?: string } | null;
+        if (!response.ok) throw new Error(payload?.error || `Bulk import failed after ${createdCount} providers`);
+        createdCount += payload?.createdCount || batch.length;
+      }
       await queryClient.invalidateQueries({ queryKey: getListProvidersQueryKey() });
-      toast({ title: `${payload?.createdCount || bulkRows.length} providers imported` });
+      toast({ title: `${createdCount} providers imported` });
       setBulkRows([]);
       setBulkErrors([]);
       setBulkFileName("");
@@ -462,7 +465,7 @@ export default function AdminProviders() {
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div>
                 <h2 className="text-xl font-bold">Bulk provider spreadsheet upload</h2>
-                <p className="text-sm text-muted-foreground mt-1">Upload up to 1,000 provider rows from Excel. Every row is validated before the import button is enabled.</p>
+                <p className="text-sm text-muted-foreground mt-1">Street address is optional and should be omitted for anonymized providers. Large files are imported automatically in 1,000-row batches.</p>
               </div>
               <Button variant="secondary" onClick={downloadTemplate}><Download className="w-4 h-4 mr-2 admin-icon" /> Download Excel template</Button>
             </div>
@@ -512,13 +515,13 @@ export default function AdminProviders() {
         <DialogContent className="atlas-modal sm:max-w-[760px] max-h-[88vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Add internal provider record</DialogTitle>
-            <DialogDescription>Provider identity stays inside the admin system. Client users receive only service and generalized coverage information.</DialogDescription>
+            <DialogDescription>Provider identity stays inside the admin system. Street address is optional; use generalized coordinates when exact location should remain private.</DialogDescription>
           </DialogHeader>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
             <Field label="Provider / clinic name *" value={form.name} onChange={(value) => updateField("name", value)} />
             <Field label="Country *" value={form.country} onChange={(value) => updateField("country", value)} />
-            <div className="md:col-span-2"><Field label="Street address *" value={form.address} onChange={(value) => updateField("address", value)} /></div>
+            <div className="md:col-span-2"><Field label="Street address (optional)" value={form.address} onChange={(value) => updateField("address", value)} /></div>
             <Field label="City *" value={form.city} onChange={(value) => updateField("city", value)} />
             <Field label="State / region *" value={form.state} onChange={(value) => updateField("state", value)} />
             <Field label="Postal code" value={form.postalCode} onChange={(value) => updateField("postalCode", value)} />
