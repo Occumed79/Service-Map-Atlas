@@ -47,9 +47,9 @@ async function ensureCategories(client:any) {
 }
 
 function runBuilder(script:string){
-  const full=path.resolve(process.cwd(),script);
+  const full=path.resolve(process.cwd(),"../..",script);
   const stdout=execFileSync(process.execPath,[full],{encoding:"utf8",maxBuffer:5*1024*1024,env:process.env});
-  logger.info({script,output:stdout.trim()},"Atlas isolated builder complete");
+  logger.info({script,full,output:stdout.trim()},"Atlas isolated builder complete");
 }
 
 export async function runAtlasIsolatedDatasetBootstrap(){
