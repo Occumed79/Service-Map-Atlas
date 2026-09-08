@@ -48,16 +48,13 @@ type Payload = {
 };
 
 function slugify(value: string) {
-  return value
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 }
 
 function importEnabled() {
   return Boolean(
     process.env.ATLAS_DATASET_IMPORT_KEY &&
-      process.env.ATLAS_DATASET_IMPORT_PAYLOAD_URL &&
+      process.env.ATLAS_DATASET_IMPORT_PAYLOAD_CHUNKS &&
       process.env.NEON_API_KEY &&
       process.env.ATLAS_EXPECTED_ENDPOINT,
   );
@@ -76,9 +73,7 @@ async function verifyTarget() {
   const directHost = `${expectedEndpoint}.`;
   const pooledHost = `${expectedEndpoint}-pooler.`;
   if (!hostname.startsWith(directHost) && !hostname.startsWith(pooledHost)) {
-    throw new Error(
-      `Refusing corrected Atlas import: DATABASE_URL host ${hostname} does not match ${expectedEndpoint}.`,
-    );
+    throw new Error(`Refusing corrected Atlas import: DATABASE_URL host ${hostname} does not match ${expectedEndpoint}.`);
   }
 
   const headers = { Authorization: `Bearer ${apiKey}` };
@@ -87,13 +82,9 @@ async function verifyTarget() {
     throw new Error(`Neon project verification failed with HTTP ${projectsResponse.status}.`);
   }
 
-  const projectPayload = (await projectsResponse.json()) as {
-    projects?: Array<{ id: string; name: string }>;
-  };
+  const projectPayload = (await projectsResponse.json()) as { projects?: Array<{ id: string; name: string }> };
   const project = projectPayload.projects?.find((item) => item.name === "Service-Map-Atlas");
-  if (!project) {
-    throw new Error("Neon API key cannot see the Service-Map-Atlas project.");
-  }
+  if (!project) throw new Error("Neon API key cannot see the Service-Map-Atlas project.");
 
   const endpointsResponse = await fetch(
     `https://console.neon.tech/api/v2/projects/${encodeURIComponent(project.id)}/endpoints`,
@@ -103,30 +94,36 @@ async function verifyTarget() {
     throw new Error(`Neon endpoint verification failed with HTTP ${endpointsResponse.status}.`);
   }
 
-  const endpointPayload = (await endpointsResponse.json()) as {
-    endpoints?: Array<{ id: string }>;
-  };
+  const endpointPayload = (await endpointsResponse.json()) as { endpoints?: Array<{ id: string }> };
   if (!endpointPayload.endpoints?.some((endpoint) => endpoint.id === expectedEndpoint)) {
-    throw new Error(
-      `Service-Map-Atlas project does not expose expected production endpoint ${expectedEndpoint}.`,
-    );
+    throw new Error(`Service-Map-Atlas project does not expose expected production endpoint ${expectedEndpoint}.`);
   }
 
-  logger.info(
-    { projectId: project.id, endpointId: expectedEndpoint },
-    "Verified corrected Atlas import target",
-  );
+  logger.info({ projectId: project.id, endpointId: expectedEndpoint }, "Verified corrected Atlas import target");
+}
+
+function readEncryptedPayloadFromEnv() {
+  const rawCount = process.env.ATLAS_DATASET_IMPORT_PAYLOAD_CHUNKS;
+  const chunkCount = Number(rawCount);
+  if (!Number.isInteger(chunkCount) || chunkCount < 1 || chunkCount > 100) {
+    throw new Error(`Invalid corrected Atlas payload chunk count: ${rawCount ?? "missing"}.`);
+  }
+
+  let encoded = "";
+  for (let index = 0; index < chunkCount; index += 1) {
+    const key = `ATLAS_DATASET_IMPORT_PAYLOAD_${String(index).padStart(3, "0")}`;
+    const value = process.env[key];
+    if (!value) throw new Error(`Missing corrected Atlas payload chunk ${key}.`);
+    encoded += value;
+  }
+  return encoded;
 }
 
 async function loadPayload(): Promise<Payload> {
-  const payloadUrl = process.env.ATLAS_DATASET_IMPORT_PAYLOAD_URL;
   const keyHex = process.env.ATLAS_DATASET_IMPORT_KEY;
-  if (!payloadUrl || !keyHex) throw new Error("Corrected Atlas payload configuration is incomplete.");
+  if (!keyHex) throw new Error("Corrected Atlas payload key is missing.");
 
-  const response = await fetch(payloadUrl);
-  if (!response.ok) throw new Error(`Corrected Atlas payload download failed with HTTP ${response.status}.`);
-
-  const encoded = (await response.text()).trim();
+  const encoded = readEncryptedPayloadFromEnv();
   const encrypted = Buffer.from(encoded, "base64");
   if (encrypted.length < 29) throw new Error("Corrected Atlas payload is invalid.");
 
@@ -144,22 +141,15 @@ async function loadPayload(): Promise<Payload> {
   const payload = JSON.parse(gunzipSync(compressed).toString("utf8")) as Payload;
 
   if (!payload || payload.expectedCount !== EXPECTED_COUNT || payload.providers?.length !== EXPECTED_COUNT) {
-    throw new Error(
-      `Corrected Atlas payload count mismatch: expected ${EXPECTED_COUNT}, received ${payload?.providers?.length ?? 0}.`,
-    );
+    throw new Error(`Corrected Atlas payload count mismatch: expected ${EXPECTED_COUNT}, received ${payload?.providers?.length ?? 0}.`);
   }
 
   const accepted = new Set<string>(SERVICE_NAMES);
   for (const provider of payload.providers) {
     if (
-      !provider.name ||
-      !provider.city ||
-      !provider.state ||
-      !provider.country ||
-      !Number.isFinite(provider.latitude) ||
-      !Number.isFinite(provider.longitude) ||
-      !provider.services?.length ||
-      provider.services.some((service) => !accepted.has(service))
+      !provider.name || !provider.city || !provider.state || !provider.country ||
+      !Number.isFinite(provider.latitude) || !Number.isFinite(provider.longitude) ||
+      !provider.services?.length || provider.services.some((service) => !accepted.has(service))
     ) {
       throw new Error(`Corrected Atlas payload failed validation at ${provider.name || "unnamed provider"}.`);
     }
@@ -168,9 +158,7 @@ async function loadPayload(): Promise<Payload> {
   return payload;
 }
 
-async function ensureServiceCategories(
-  client: Awaited<ReturnType<typeof pool.connect>>,
-): Promise<Map<string, number>> {
+async function ensureServiceCategories(client: Awaited<ReturnType<typeof pool.connect>>): Promise<Map<string, number>> {
   const existing = await client.query<{ id: number; name: string }>(
     `SELECT id, name FROM service_categories WHERE name = ANY($1::text[])`,
     [SERVICE_NAMES],
@@ -243,17 +231,10 @@ export async function runCorrectedAtlasDatasetBootstrap() {
       const tuples = batch.map((provider) => {
         const base = values.length;
         values.push(
-          provider.name,
-          "",
-          provider.city,
-          provider.state,
-          provider.country,
-          provider.latitude,
-          provider.longitude,
-          provider.availabilityNotes || null,
-          provider.coverageNotes || null,
-          provider.internalTags || null,
-          true,
+          provider.name, "", provider.city, provider.state, provider.country,
+          provider.latitude, provider.longitude,
+          provider.availabilityNotes || null, provider.coverageNotes || null,
+          provider.internalTags || null, true,
         );
         return `($${base + 1},$${base + 2},$${base + 3},$${base + 4},$${base + 5},$${base + 6},$${base + 7},$${base + 8},$${base + 9},$${base + 10},$${base + 11})`;
       });
@@ -299,9 +280,7 @@ export async function runCorrectedAtlasDatasetBootstrap() {
     );
     const verifiedCount = Number(verified.rows[0]?.count);
     if (inserted !== EXPECTED_COUNT || verifiedCount !== EXPECTED_COUNT) {
-      throw new Error(
-        `Corrected Atlas provider verification failed: inserted=${inserted}, database=${verifiedCount}, expected=${EXPECTED_COUNT}.`,
-      );
+      throw new Error(`Corrected Atlas provider verification failed: inserted=${inserted}, database=${verifiedCount}, expected=${EXPECTED_COUNT}.`);
     }
 
     await client.query(
