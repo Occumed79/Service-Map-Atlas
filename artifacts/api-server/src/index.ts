@@ -1,6 +1,7 @@
 import app from "./app";
 import { logger } from "./lib/logger";
 import { runCorrectedAtlasDatasetBootstrap } from "./services/atlasCorrectedDatasetBootstrap";
+import { runAtlasSourceDatasetBootstrap } from "./services/atlasSourceDatasetBootstrap";
 
 const rawPort = process.env["PORT"];
 
@@ -18,6 +19,7 @@ if (Number.isNaN(port) || port <= 0) {
 
 async function start() {
   await runCorrectedAtlasDatasetBootstrap();
+  await runAtlasSourceDatasetBootstrap();
 
   app.listen(port, (err) => {
     if (err) {
