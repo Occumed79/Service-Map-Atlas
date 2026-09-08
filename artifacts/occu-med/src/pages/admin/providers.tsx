@@ -99,12 +99,18 @@ export default function AdminProviders() {
   const [bulkFileName, setBulkFileName] = useState("");
   const [isParsing, setIsParsing] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [isDeletingAll, setIsDeletingAll] = useState(false);
+  const [importProgress, setImportProgress] = useState({ completed: 0, total: 0 });
   const { data: providers = [], isLoading } = useListProviders({ search: search || undefined });
   const { data: categories = [] } = useListCategories();
   const createProvider = useCreateProvider();
   const deleteProvider = useDeleteProvider();
   const queryClient = useQueryClient();
   const { toast } = useToast();
+
+  const importPercent = importProgress.total > 0
+    ? Math.min(100, Math.round((importProgress.completed / importProgress.total) * 100))
+    : 0;
 
   const clientCoverage = useMemo(() => {
     const byService = new Map<string, { service: string; providerCount: number; areas: Set<string> }>();
@@ -131,8 +137,8 @@ export default function AdminProviders() {
     setServiceIds([]);
   };
 
-  const handleDelete = (id: number) => {
-    if (!confirm("Delete this internal provider record?")) return;
+  const handleDelete = (id: number, label?: string) => {
+    if (!confirm(`Delete ${label || "this provider"}? This cannot be undone.`)) return;
     deleteProvider.mutate({ id }, {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: getListProvidersQueryKey() });
@@ -140,6 +146,34 @@ export default function AdminProviders() {
       },
       onError: () => toast({ title: "Delete failed", variant: "destructive" }),
     });
+  };
+
+  const handleDeleteAll = async () => {
+    const confirmed = confirm(
+      "Delete ALL provider records from Atlas? This removes every imported clinic and all associated service links. This cannot be undone.",
+    );
+    if (!confirmed) return;
+
+    setIsDeletingAll(true);
+    try {
+      const response = await fetch("/api/providers", {
+        method: "DELETE",
+        credentials: "include",
+      });
+      const payload = await response.json().catch(() => null) as { deletedCount?: number; error?: string } | null;
+      if (!response.ok) throw new Error(payload?.error || "Delete all failed");
+      setSearch("");
+      await queryClient.invalidateQueries({ queryKey: getListProvidersQueryKey() });
+      toast({ title: `${payload?.deletedCount ?? 0} providers deleted` });
+    } catch (error) {
+      toast({
+        title: "Delete all failed",
+        description: error instanceof Error ? error.message : undefined,
+        variant: "destructive",
+      });
+    } finally {
+      setIsDeletingAll(false);
+    }
   };
 
   const geocodeAddress = async () => {
@@ -230,6 +264,7 @@ export default function AdminProviders() {
     setBulkErrors([]);
     setBulkRows([]);
     setBulkFileName(file.name);
+    setImportProgress({ completed: 0, total: 0 });
 
     try {
       const XLSX = await loadSpreadsheetModule();
@@ -336,6 +371,7 @@ export default function AdminProviders() {
     }
 
     setIsUploading(true);
+    setImportProgress({ completed: 0, total: bulkRows.length });
     let createdCount = 0;
     try {
       const batchSize = 1000;
@@ -350,13 +386,15 @@ export default function AdminProviders() {
         const payload = await response.json().catch(() => null) as { createdCount?: number; error?: string } | null;
         if (!response.ok) throw new Error(payload?.error || `Bulk import failed after ${createdCount} providers`);
         createdCount += payload?.createdCount || batch.length;
+        setImportProgress({ completed: createdCount, total: bulkRows.length });
       }
       await queryClient.invalidateQueries({ queryKey: getListProvidersQueryKey() });
       toast({ title: `${createdCount} providers imported` });
       setBulkRows([]);
       setBulkErrors([]);
       setBulkFileName("");
-      setView("coverage");
+      setImportProgress({ completed: createdCount, total: createdCount });
+      setView("records");
     } catch (error) {
       toast({ title: "Bulk import failed", description: error instanceof Error ? error.message : undefined, variant: "destructive" });
     } finally {
@@ -416,41 +454,59 @@ export default function AdminProviders() {
 
       {view === "records" && (
         <>
-          <div className="flex flex-col sm:flex-row justify-between gap-3">
-            <GlassPanel className="p-4 flex items-center gap-4 flex-1">
-              <div className="relative flex-1 max-w-md">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input placeholder="Search internal provider records" className="pl-9 bg-white/60" value={search} onChange={(event) => setSearch(event.target.value)} />
+          <GlassPanel className="p-5">
+            <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+              <div className="flex-1">
+                <h2 className="font-semibold">Find and manage individual clinics</h2>
+                <p className="text-sm text-muted-foreground mt-1">Search by anonymous clinic ID, city, state/region, or country, then delete a single clinic from the matching results.</p>
+                <div className="relative mt-4 max-w-2xl">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search clinic ID or area — e.g. Milwaukee, WI, South Africa"
+                    className="pl-9 bg-white/60"
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground mt-2">{isLoading ? "Searching…" : `${providers.length.toLocaleString()} matching provider${providers.length === 1 ? "" : "s"}`}</p>
               </div>
-            </GlassPanel>
-            <Button onClick={() => setIsAddOpen(true)}><Plus className="w-4 h-4 mr-2" /> Add provider</Button>
-          </div>
+              <div className="flex flex-wrap gap-2">
+                <Button onClick={() => setIsAddOpen(true)}><Plus className="w-4 h-4 mr-2" /> Add provider</Button>
+                <Button variant="destructive" onClick={handleDeleteAll} disabled={isDeletingAll}>
+                  {isDeletingAll ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Trash2 className="w-4 h-4 mr-2" />}
+                  {isDeletingAll ? "Deleting all…" : "Delete all providers"}
+                </Button>
+              </div>
+            </div>
+          </GlassPanel>
 
           <GlassPanel className="p-0 overflow-hidden">
             <Table>
               <TableHeader className="bg-white/35">
                 <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Location</TableHead>
-                  <TableHead>Contact</TableHead>
+                  <TableHead>Anonymous clinic ID</TableHead>
+                  <TableHead>Area</TableHead>
                   <TableHead>Services</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead className="text-right">Delete</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isLoading ? (
-                  <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Loading providers…</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">Loading providers…</TableCell></TableRow>
                 ) : providers.length === 0 ? (
-                  <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">No providers found.</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">No providers found.</TableCell></TableRow>
                 ) : providers.map((provider) => (
                   <TableRow key={provider.id}>
                     <TableCell className="font-medium">{provider.name}</TableCell>
-                    <TableCell>{provider.city}, {provider.state}</TableCell>
-                    <TableCell><div className="text-sm"><div>{provider.email || "—"}</div><div className="text-muted-foreground">{provider.phone || "—"}</div></div></TableCell>
-                    <TableCell className="max-w-[280px]"><div className="flex flex-wrap gap-1">{provider.services?.slice(0, 4).map((service) => <span key={service} className="px-2 py-1 rounded-full bg-secondary text-[10px]">{service}</span>)}</div></TableCell>
+                    <TableCell>{provider.city}, {provider.state}, {provider.country}</TableCell>
+                    <TableCell className="max-w-[360px]"><div className="flex flex-wrap gap-1">{provider.services?.slice(0, 6).map((service) => <span key={service} className="px-2 py-1 rounded-full bg-secondary text-[10px]">{service}</span>)}</div></TableCell>
                     <TableCell><span className={provider.active ? "px-2 py-1 rounded-full text-xs bg-emerald-600/10 text-emerald-700" : "px-2 py-1 rounded-full text-xs bg-destructive/10 text-destructive"}>{provider.active ? "Active" : "Inactive"}</span></TableCell>
-                    <TableCell className="text-right"><Button variant="ghost" size="icon" onClick={() => handleDelete(provider.id)}><Trash2 className="w-4 h-4" /></Button></TableCell>
+                    <TableCell className="text-right">
+                      <Button variant="ghost" onClick={() => handleDelete(provider.id, provider.name)}>
+                        <Trash2 className="w-4 h-4 mr-2" /> Delete clinic
+                      </Button>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -489,9 +545,26 @@ export default function AdminProviders() {
 
           {bulkRows.length > 0 && (
             <GlassPanel className="p-0 overflow-hidden">
-              <div className="p-4 flex items-center justify-between gap-4 border-b border-slate-200/70">
-                <div><h3 className="font-semibold">Validated import preview</h3><p className="text-sm text-muted-foreground">{bulkRows.length} valid provider row{bulkRows.length === 1 ? "" : "s"}</p></div>
-                <Button onClick={uploadBulkProviders} disabled={isUploading || bulkErrors.length > 0}>{isUploading ? "Importing…" : `Import ${bulkRows.length} providers`}</Button>
+              <div className="p-4 border-b border-slate-200/70">
+                <div className="flex items-center justify-between gap-4">
+                  <div><h3 className="font-semibold">Validated import preview</h3><p className="text-sm text-muted-foreground">{bulkRows.length} valid provider row{bulkRows.length === 1 ? "" : "s"}</p></div>
+                  <Button onClick={uploadBulkProviders} disabled={isUploading || bulkErrors.length > 0}>
+                    {isUploading ? `Importing ${importPercent}%` : `Import ${bulkRows.length} providers`}
+                  </Button>
+                </div>
+
+                {(isUploading || importProgress.total > 0) && (
+                  <div className="mt-4">
+                    <div className="flex items-center justify-between text-sm mb-2">
+                      <span className="font-medium">Import progress</span>
+                      <span className="font-semibold">{importPercent}%</span>
+                    </div>
+                    <div className="h-3 rounded-full bg-slate-200/80 overflow-hidden">
+                      <div className="h-full bg-primary transition-all duration-300" style={{ width: `${importPercent}%` }} />
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-2">{importProgress.completed.toLocaleString()} of {importProgress.total.toLocaleString()} providers processed</p>
+                  </div>
+                )}
               </div>
               <div className="max-h-[460px] overflow-auto">
                 <Table>
