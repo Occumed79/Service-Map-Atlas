@@ -12,7 +12,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
 import * as z from "zod";
-import { AtlasArcgisMap, type CoverageArea } from "@/components/atlas-arcgis-map";
+import { AtlasArcgisMap, SERVICE_COLORS, type CoverageArea } from "@/components/atlas-arcgis-map";
 
 const SERVICE_CATEGORIES = [
   "Dental",
@@ -155,6 +155,7 @@ export default function Home() {
         center={mapCenter}
         zoom={mapZoom}
         coverageAreas={coverageAreas}
+        selectedService={selectedService}
         onMarkerClick={handleMarkerClick}
         onRequestCoverage={openRequest}
         onStatusChange={(status, message) => {
@@ -195,9 +196,11 @@ export default function Home() {
             <button
               type="button"
               key={category}
-              className={selectedService === category ? "atlas-filter active" : "atlas-filter"}
+              className={selectedService === category ? "atlas-filter active atlas-filter-category" : "atlas-filter atlas-filter-category"}
+              style={{ "--filter-accent": SERVICE_COLORS[category] } as React.CSSProperties}
               onClick={() => setSelectedService(selectedService === category ? null : category)}
             >
+              <span className="atlas-filter-color" aria-hidden="true" />
               {category}
             </button>
           ))}
