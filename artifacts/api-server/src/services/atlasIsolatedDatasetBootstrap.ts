@@ -54,8 +54,12 @@ function runBuilder(script:string){
 
 export async function runAtlasIsolatedDatasetBootstrap(){
   if(!(await verifyTarget())) return;
-  runBuilder("scripts/atlas-extract-aux.mjs");
-  runBuilder("scripts/atlas-build-final.mjs");
+  if (!fs.existsSync("/tmp/atlas-final.json")) {
+    runBuilder("scripts/atlas-extract-aux.mjs");
+    runBuilder("scripts/atlas-build-final.mjs");
+  } else {
+    logger.info("Using corrected Atlas payload prepared before API startup");
+  }
   const providers=JSON.parse(fs.readFileSync("/tmp/atlas-final.json","utf8")) as P[];
   if(providers.length!==EXPECTED) throw new Error(`Final payload ${providers.length}/${EXPECTED}; DB untouched`);
 
