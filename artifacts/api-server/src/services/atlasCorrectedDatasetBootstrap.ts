@@ -53,6 +53,10 @@ type ProviderRecord = {
 
 type CapabilityEvidence = { components: Set<string>; types: Set<string> };
 
+type SqlClient = {
+  query: (text: string, values?: unknown[]) => Promise<{ rows: unknown[] }>;
+};
+
 function clean(value: unknown) {
   return String(value ?? "").trim();
 }
@@ -129,11 +133,7 @@ function buildCapabilityEvidence(aux: AuxSnapshot) {
   return byExternalId;
 }
 
-function mappedServices(
-  provider: RawProvider,
-  evidence: CapabilityEvidence | undefined,
-  clinicType: string,
-) {
+function mappedServices(provider: RawProvider, evidence: CapabilityEvidence | undefined, clinicType: string) {
   const tags = documentedTags(provider);
   const components = [...(evidence?.components ?? [])].sort();
   const componentTypes = evidence?.types ?? new Set<string>();
@@ -203,7 +203,7 @@ function buildCorrectedProviders(rawProviders: RawProvider[], aux: AuxSnapshot) 
 
   for (const provider of providers) {
     const city = clean(provider.cy);
-    let state = clean(provider.rg) || "N/A";
+    const state = clean(provider.rg) || "N/A";
     let country = normalizeCountry(provider.co);
     if (!country && /^[A-Za-z]{2}$/.test(state) && state !== "N/A") country = "United States";
     const latitude = finiteNumber(provider.lat);
@@ -281,9 +281,7 @@ function buildCorrectedProviders(rawProviders: RawProvider[], aux: AuxSnapshot) 
   }
 
   if (corrected.length !== EXPECTED_COUNT || unmapped !== EXPECTED_UNMAPPED || missingLocation !== EXPECTED_MISSING_LOCATION) {
-    throw new Error(
-      `Command Center normalization mismatch: mapped=${corrected.length}/${EXPECTED_COUNT}, unmapped=${unmapped}/${EXPECTED_UNMAPPED}, missing=${missingLocation}/${EXPECTED_MISSING_LOCATION}.`,
-    );
+    throw new Error(`Command Center normalization mismatch: mapped=${corrected.length}/${EXPECTED_COUNT}, unmapped=${unmapped}/${EXPECTED_UNMAPPED}, missing=${missingLocation}/${EXPECTED_MISSING_LOCATION}.`);
   }
   return corrected;
 }
@@ -335,16 +333,18 @@ async function loadCorrectedProviders() {
   return buildCorrectedProviders(rawProviders, aux);
 }
 
-async function ensureServiceCategories(client: Awaited<ReturnType<typeof pool.connect>>) {
-  const existing = await client.query<{ id: number; name: string }>(`SELECT id, name FROM service_categories WHERE name = ANY($1::text[])`, [SERVICE_NAMES]);
-  const byName = new Map(existing.rows.map((row) => [row.name, row.id]));
+async function ensureServiceCategories(client: SqlClient) {
+  const existing = (await client.query(`SELECT id, name FROM service_categories WHERE name = ANY($1::text[])`, [SERVICE_NAMES])) as {
+    rows: Array<{ id: number; name: string }>;
+  };
+  const byName = new Map<string, number>(existing.rows.map((row) => [row.name, row.id]));
   for (const name of SERVICE_NAMES) {
     if (byName.has(name)) continue;
-    const result = await client.query<{ id: number }>(
+    const result = (await client.query(
       `INSERT INTO service_categories (name, slug) VALUES ($1, $2)
        ON CONFLICT (slug) DO UPDATE SET name = EXCLUDED.name RETURNING id`,
       [name, slugify(name)],
-    );
+    )) as { rows: Array<{ id: number }> };
     byName.set(name, result.rows[0].id);
   }
   return byName;
@@ -381,7 +381,7 @@ export async function runCorrectedAtlasDatasetBootstrap() {
       }
     }
 
-    const categories = await ensureServiceCategories(client);
+    const categories = await ensureServiceCategories(client as unknown as SqlClient);
     const deleted = await client.query<{ id: number }>(`DELETE FROM service_locations WHERE ${generatedNameSql()} RETURNING id`);
     let inserted = 0;
     let serviceLinks = 0;
