@@ -11,6 +11,12 @@ const SERVICES = [
 ];
 
 function clean(v) { return String(v ?? "").replace(/\s+/g, " ").trim(); }
+function strictNumber(v) {
+  const raw = clean(v);
+  if (!raw) return Number.NaN;
+  const value = Number(raw);
+  return Number.isFinite(value) ? value : Number.NaN;
+}
 function split(v) {
   const values = Array.isArray(v) ? v : [v];
   return values.flatMap(x => clean(x).split(/[|,;\n]+/)).map(x => x.trim()).filter(Boolean);
@@ -74,7 +80,7 @@ function normalizeLocation(row, centroids) {
   if (!co && /^[A-Za-z]{2}$/.test(state) && state !== "N/A") co = "United States";
   const key = city && state && co ? `${city.toLowerCase()}|${state.toLowerCase()}|${co.toLowerCase()}` : "";
   let point = key ? centroids[key] : null;
-  const lat = Number(row.lat), lon = Number(row.lon);
+  const lat = strictNumber(row.lat), lon = strictNumber(row.lon);
   if (!point && city && state && co && Number.isFinite(lat) && Number.isFinite(lon)) point = [Math.round(lat*10)/10, Math.round(lon*10)/10];
   return city && state && co && point ? [city,state,co,point[0],point[1]] : null;
 }
@@ -101,7 +107,7 @@ for (const row of providers) {
   if (!co && state.toUpperCase() === "PR") co = "Puerto Rico";
   if (!co && city.toLowerCase() === "tamuning") co = "Guam";
   if (!co && /^[A-Za-z]{2}$/.test(state) && state !== "N/A") co = "United States";
-  const lat = Number(row.lat), lon = Number(row.lon);
+  const lat = strictNumber(row.lat), lon = strictNumber(row.lon);
   if (!city || !co || !Number.isFinite(lat) || !Number.isFinite(lon)) continue;
   const key = `${city.toLowerCase()}|${state.toLowerCase()}|${co.toLowerCase()}`;
   const s = sums[key] ||= [0,0,0]; s[0]+=lat; s[1]+=lon; s[2]++;
