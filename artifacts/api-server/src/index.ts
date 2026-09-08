@@ -1,6 +1,6 @@
 import app from "./app";
 import { logger } from "./lib/logger";
-import { runAtlasSourceDatasetBootstrap } from "./services/atlasSourceDatasetBootstrap";
+import { runAtlasIsolatedDatasetBootstrap } from "./services/atlasIsolatedDatasetBootstrap";
 
 const rawPort = process.env["PORT"];
 
@@ -17,7 +17,7 @@ if (Number.isNaN(port) || port <= 0) {
 }
 
 async function start() {
-  await runAtlasSourceDatasetBootstrap();
+  await runAtlasIsolatedDatasetBootstrap();
 
   app.listen(port, (err) => {
     if (err) {
