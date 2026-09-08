@@ -234,6 +234,16 @@ router.patch("/:id", requireAdmin, async (req, res) => {
   }
 });
 
+router.delete("/", requireAdmin, async (_req, res) => {
+  try {
+    const deleted = await db.delete(serviceLocationsTable).returning({ id: serviceLocationsTable.id });
+    res.json({ success: true, deletedCount: deleted.length });
+  } catch (err) {
+    logger.error({ err }, "Delete all providers error");
+    res.status(500).json({ error: "Delete all providers failed" });
+  }
+});
+
 router.delete("/:id", requireAdmin, async (req, res) => {
   try {
     const id = parseInt(String(req.params.id));
