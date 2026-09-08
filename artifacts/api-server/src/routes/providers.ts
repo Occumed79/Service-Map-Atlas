@@ -168,11 +168,45 @@ router.post("/bulk", requireAdmin, async (req, res) => {
   }
 
   try {
-    const created = [];
-    for (const provider of parsed.data.providers) {
-      created.push(await createProviderRecord(provider));
-    }
-    res.status(201).json({ createdCount: created.length, providers: created });
+    const createdCount = await db.transaction(async (tx) => {
+      const providerRows = parsed.data.providers.map(({ serviceIds: _serviceIds, ...rest }) => ({
+        name: rest.name,
+        address: rest.address,
+        city: rest.city,
+        state: rest.state,
+        country: rest.country || "US",
+        postalCode: rest.postalCode,
+        latitude: rest.latitude,
+        longitude: rest.longitude,
+        phone: rest.phone,
+        email: rest.email,
+        website: rest.website,
+        availabilityNotes: rest.availabilityNotes,
+        coverageNotes: rest.coverageNotes,
+        internalTags: rest.internalTags,
+        active: rest.active ?? true,
+      }));
+
+      const created = await tx
+        .insert(serviceLocationsTable)
+        .values(providerRows)
+        .returning({ id: serviceLocationsTable.id });
+
+      const serviceLinks = parsed.data.providers.flatMap((provider, index) =>
+        (provider.serviceIds || []).map((categoryId: number) => ({
+          locationId: created[index].id,
+          categoryId,
+        })),
+      );
+
+      if (serviceLinks.length > 0) {
+        await tx.insert(locationServicesTable).values(serviceLinks);
+      }
+
+      return created.length;
+    });
+
+    res.status(201).json({ createdCount });
   } catch (err) {
     logger.error({ err }, "Bulk create providers error");
     res.status(500).json({ error: "Bulk import failed before completion" });
