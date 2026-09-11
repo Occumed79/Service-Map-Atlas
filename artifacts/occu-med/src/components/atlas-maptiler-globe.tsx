@@ -533,6 +533,10 @@ export function AtlasMapTilerGlobe({
             minZoom: MIN_ZOOM,
             maxZoom: MAX_ZOOM,
             projection: "globe",
+            space: {
+              preset: "stars",
+              color: "#F8FBFF",
+            },
             attributionControl: true,
           });
           mapRef.current = map;
@@ -559,8 +563,8 @@ export function AtlasMapTilerGlobe({
               type: "fill",
               source: RING_SOURCE_ID,
               paint: {
-                "fill-color": ["case", ["==", ["get", "estimated"], 1], "#7BD7FF", "#63E6FF"],
-                "fill-opacity": ["case", ["==", ["get", "active"], 1], 0.06, 0.014],
+                "fill-color": ["case", ["==", ["get", "estimated"], 1], "#258CFF", "#00C7FF"],
+                "fill-opacity": ["case", ["==", ["get", "active"], 1], 0.065, 0.014],
               },
             });
 
@@ -569,9 +573,9 @@ export function AtlasMapTilerGlobe({
               type: "line",
               source: RING_SOURCE_ID,
               paint: {
-                "line-color": ["case", ["==", ["get", "estimated"], 1], "#74CFFF", "#7BEAFF"],
+                "line-color": ["case", ["==", ["get", "estimated"], 1], "#4360CF", "#00C7FF"],
                 "line-width": ["case", ["==", ["get", "active"], 1], 8, 4],
-                "line-opacity": ["case", ["==", ["get", "active"], 1], 0.24, 0.09],
+                "line-opacity": ["case", ["==", ["get", "active"], 1], 0.26, 0.09],
                 "line-blur": 5,
               },
             });
@@ -581,9 +585,9 @@ export function AtlasMapTilerGlobe({
               type: "line",
               source: RING_SOURCE_ID,
               paint: {
-                "line-color": ["case", ["==", ["get", "estimated"], 1], "#B5E7FF", "#B9F6FF"],
+                "line-color": ["case", ["==", ["get", "estimated"], 1], "#9CB7FF", "#BDFBFF"],
                 "line-width": ["case", ["==", ["get", "active"], 1], 1.8, 1],
-                "line-opacity": ["case", ["==", ["get", "active"], 1], 0.94, 0.42],
+                "line-opacity": ["case", ["==", ["get", "active"], 1], 0.95, 0.42],
               },
             });
 
@@ -607,9 +611,9 @@ export function AtlasMapTilerGlobe({
               source: ARC_SOURCE_ID,
               paint: {
                 "line-color": ["get", "arcColor"],
-                "line-width": 8,
-                "line-opacity": 0.22,
-                "line-blur": 5,
+                "line-width": ["interpolate", ["linear"], ["zoom"], 1.5, 3.5, 6, 6, 10, 8],
+                "line-opacity": 0.2,
+                "line-blur": 4,
               },
             });
 
@@ -619,8 +623,8 @@ export function AtlasMapTilerGlobe({
               source: ARC_SOURCE_ID,
               paint: {
                 "line-color": ["get", "arcColor"],
-                "line-width": 1.65,
-                "line-opacity": 0.92,
+                "line-width": ["interpolate", ["linear"], ["zoom"], 1.5, 0.8, 6, 1.25, 10, 1.7],
+                "line-opacity": 0.94,
               },
             });
 
@@ -634,10 +638,10 @@ export function AtlasMapTilerGlobe({
               type: "circle",
               source: ANCHOR_SOURCE_ID,
               paint: {
-                "circle-radius": 19,
-                "circle-color": "#9AF4FF",
-                "circle-opacity": 0.25,
-                "circle-blur": 0.75,
+                "circle-radius": ["interpolate", ["linear"], ["zoom"], 1.5, 7, 6, 14, 10, 19],
+                "circle-color": "#00C7FF",
+                "circle-opacity": 0.22,
+                "circle-blur": 0.72,
                 "circle-stroke-width": 0,
               },
             });
@@ -647,11 +651,11 @@ export function AtlasMapTilerGlobe({
               type: "circle",
               source: ANCHOR_SOURCE_ID,
               paint: {
-                "circle-radius": 5.5,
-                "circle-color": "#ECFDFF",
+                "circle-radius": ["interpolate", ["linear"], ["zoom"], 1.5, 2.6, 6, 4.2, 10, 5.6],
+                "circle-color": "#F4FDFF",
                 "circle-opacity": 1,
-                "circle-stroke-color": "rgba(86,225,255,0.9)",
-                "circle-stroke-width": 2.5,
+                "circle-stroke-color": "#00C7FF",
+                "circle-stroke-width": ["interpolate", ["linear"], ["zoom"], 1.5, 1, 6, 1.8, 10, 2.4],
               },
             });
 
@@ -665,10 +669,10 @@ export function AtlasMapTilerGlobe({
               type: "circle",
               source: SOURCE_ID,
               paint: {
-                "circle-radius": 23,
+                "circle-radius": ["interpolate", ["linear"], ["zoom"], 1.5, 3, 3, 4.5, 5, 7.5, 8, 12, 12, 17],
                 "circle-color": ["get", "markerColor"],
-                "circle-opacity": 0.11,
-                "circle-blur": 0.82,
+                "circle-opacity": ["interpolate", ["linear"], ["zoom"], 1.5, 0.025, 4, 0.055, 7, 0.1, 11, 0.13],
+                "circle-blur": 0.72,
                 "circle-stroke-width": 0,
               },
             });
@@ -678,10 +682,10 @@ export function AtlasMapTilerGlobe({
               type: "circle",
               source: SOURCE_ID,
               paint: {
-                "circle-radius": 12.5,
+                "circle-radius": ["interpolate", ["linear"], ["zoom"], 1.5, 2.4, 3, 3.1, 5, 4.6, 8, 7.4, 12, 10.5],
                 "circle-color": ["get", "markerColor"],
-                "circle-opacity": 0.38,
-                "circle-blur": 0.36,
+                "circle-opacity": ["interpolate", ["linear"], ["zoom"], 1.5, 0.1, 4, 0.18, 7, 0.29, 11, 0.38],
+                "circle-blur": 0.32,
                 "circle-stroke-width": 0,
               },
             });
@@ -691,11 +695,11 @@ export function AtlasMapTilerGlobe({
               type: "circle",
               source: SOURCE_ID,
               paint: {
-                "circle-radius": 5.8,
+                "circle-radius": ["interpolate", ["linear"], ["zoom"], 1.5, 1.8, 3, 2.2, 5, 2.9, 8, 4.2, 12, 5.8],
                 "circle-color": ["get", "markerColor"],
                 "circle-opacity": 1,
-                "circle-stroke-color": "rgba(255,255,255,0.98)",
-                "circle-stroke-width": 2.35,
+                "circle-stroke-color": "rgba(255,255,255,0.96)",
+                "circle-stroke-width": ["interpolate", ["linear"], ["zoom"], 1.5, 0.55, 3, 0.8, 5, 1.05, 8, 1.55, 12, 2],
               },
             });
 
@@ -857,13 +861,13 @@ export function AtlasMapTilerGlobe({
           </p>
 
           <div className="atlas-coverage-card-services">
-            {selectedArea.services.slice(0, 7).map((service) => {
+            {selectedArea.services.map((service) => {
               const serviceColor = SERVICE_COLORS[service] ?? SERVICE_COLORS["Specialty Services"];
               return (
                 <span
                   key={service}
                   style={{
-                    borderColor: hexToCssRgba(serviceColor, 0.3),
+                    borderColor: hexToCssRgba(serviceColor, 0.32),
                     background: hexToCssRgba(serviceColor, 0.12),
                     color: serviceColor,
                   }}
@@ -872,14 +876,7 @@ export function AtlasMapTilerGlobe({
                 </span>
               );
             })}
-            {selectedArea.services.length > 7 && (
-              <span className="atlas-coverage-card-more">+{selectedArea.services.length - 7} more</span>
-            )}
           </div>
-
-          <p className="atlas-coverage-card-note">
-            Provider details are protected in Atlas and confirmed during coordination.
-          </p>
 
           <button
             type="button"
