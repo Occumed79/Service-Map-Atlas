@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { SERVICE_COLORS, type CoverageArea } from "@/components/atlas-arcgis-map";
-import { getTechApiKey } from "@/lib/tech-api-key-registry";
+import { getMapTilerApiKeys } from "@/lib/tech-api-key-registry";
 
 type MapTilerSdk = {
   config: { apiKey: string };
@@ -123,6 +123,20 @@ function hexToCssRgba(hex: string, alpha = 1) {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
+function shouldFailOverMapTiler(event: any) {
+  const status = Number(
+    event?.error?.status ??
+      event?.error?.statusCode ??
+      event?.status ??
+      event?.statusCode ??
+      0,
+  );
+  if (status === 401 || status === 403 || status === 429) return true;
+
+  const message = String(event?.error?.message || event?.message || "").toLowerCase();
+  return /api\s*key|api-key|unauthori[sz]ed|forbidden|quota|rate\s*limit|too many requests|usage\s*limit/.test(message);
+}
+
 type AtlasMapTilerGlobeProps = {
   center: [number, number];
   zoom: number;
@@ -162,6 +176,7 @@ export function AtlasMapTilerGlobe({
 
   useEffect(() => {
     let destroyed = false;
+    let fallbackTimer: number | null = null;
     const host = hostRef.current;
     if (!host) return;
 
@@ -173,101 +188,157 @@ export function AtlasMapTilerGlobe({
         const sdk = await waitForMapTiler();
         if (destroyed) return;
 
-        const apiKey = getTechApiKey("maptiler");
-        if (!apiKey) {
-          throw new Error("MAP_TILER_API_KEY is not available to the Atlas client build");
+        const apiKeys = getMapTilerApiKeys();
+        if (!apiKeys.length) {
+          throw new Error("No MAP_TILER_API_KEY values are available to the Atlas client build");
         }
-        sdk.config.apiKey = apiKey;
 
-        const { center: initialCenter, zoom: initialZoom } = centerZoomRef.current;
-        const map = new sdk.Map({
-          container: host,
-          style: sdk.MapStyle.STREETS,
-          center: [initialCenter[1], initialCenter[0]],
-          zoom: clampZoom(initialZoom),
-          minZoom: MIN_ZOOM,
-          maxZoom: MAX_ZOOM,
-          projection: "globe",
-          attributionControl: true,
-        });
-        mapRef.current = map;
-
-        map.on("load", () => {
+        const createMap = (
+          keyIndex: number,
+          preservedCamera?: { center: [number, number]; zoom: number },
+        ) => {
           if (destroyed) return;
 
-          map.addSource(SOURCE_ID, {
-            type: "geojson",
-            data: coverageGeoJson(coverageRef.current, selectedServiceRef.current),
+          const apiKey = apiKeys[keyIndex];
+          if (!apiKey) return;
+
+          readyRef.current = false;
+          sdk.config.apiKey = apiKey;
+
+          const previousMap = mapRef.current;
+          mapRef.current = null;
+          try {
+            previousMap?.remove?.();
+          } catch {
+            // Ignore WebGL cleanup races while rotating keys.
+          }
+          host.replaceChildren();
+
+          host.dataset.maptilerStatus = keyIndex === 0 ? "loading" : "fallback";
+          host.dataset.maptilerKeySlot = String(keyIndex + 1);
+          delete host.dataset.maptilerError;
+          handlersRef.current.onStatusChange?.("loading");
+
+          const current = centerZoomRef.current;
+          const mapCenter = preservedCamera?.center ?? [current.center[1], current.center[0]];
+          const mapZoom = preservedCamera?.zoom ?? clampZoom(current.zoom);
+
+          const map = new sdk.Map({
+            container: host,
+            style: sdk.MapStyle.STREETS,
+            center: mapCenter,
+            zoom: clampZoom(mapZoom),
+            minZoom: MIN_ZOOM,
+            maxZoom: MAX_ZOOM,
+            projection: "globe",
+            attributionControl: true,
+          });
+          mapRef.current = map;
+          let fallbackScheduledForMap = false;
+
+          map.on("load", () => {
+            if (destroyed || mapRef.current !== map) return;
+
+            map.addSource(SOURCE_ID, {
+              type: "geojson",
+              data: coverageGeoJson(coverageRef.current, selectedServiceRef.current),
+            });
+
+            map.addLayer({
+              id: OUTER_LAYER_ID,
+              type: "circle",
+              source: SOURCE_ID,
+              paint: {
+                "circle-radius": 15,
+                "circle-color": ["get", "markerColor"],
+                "circle-opacity": 0.1,
+                "circle-stroke-width": 0,
+              },
+            });
+
+            map.addLayer({
+              id: INNER_LAYER_ID,
+              type: "circle",
+              source: SOURCE_ID,
+              paint: {
+                "circle-radius": 10.5,
+                "circle-color": ["get", "markerColor"],
+                "circle-opacity": 0.24,
+                "circle-stroke-width": 0,
+              },
+            });
+
+            map.addLayer({
+              id: CORE_LAYER_ID,
+              type: "circle",
+              source: SOURCE_ID,
+              paint: {
+                "circle-radius": 5.75,
+                "circle-color": ["get", "markerColor"],
+                "circle-opacity": 1,
+                "circle-stroke-color": "rgba(255,255,255,0.98)",
+                "circle-stroke-width": 2.2,
+              },
+            });
+
+            map.on("click", CORE_LAYER_ID, (event: any) => {
+              const area = areaFromFeature(event.features?.[0]);
+              if (!area) return;
+              handlersRef.current.onMarkerClick?.(area);
+              setSelectedArea(area);
+            });
+
+            map.on("mouseenter", CORE_LAYER_ID, () => {
+              if (map.getCanvas?.()) map.getCanvas().style.cursor = "pointer";
+            });
+            map.on("mouseleave", CORE_LAYER_ID, () => {
+              if (map.getCanvas?.()) map.getCanvas().style.cursor = "";
+            });
+
+            map.on("click", (event: any) => {
+              const hits = map.queryRenderedFeatures?.(event.point, { layers: [CORE_LAYER_ID] }) ?? [];
+              if (!hits.length) setSelectedArea(null);
+            });
+
+            readyRef.current = true;
+            host.dataset.maptilerStatus = "ready";
+            handlersRef.current.onStatusChange?.("ready");
           });
 
-          map.addLayer({
-            id: OUTER_LAYER_ID,
-            type: "circle",
-            source: SOURCE_ID,
-            paint: {
-              "circle-radius": 15,
-              "circle-color": ["get", "markerColor"],
-              "circle-opacity": 0.1,
-              "circle-stroke-width": 0,
-            },
-          });
+          map.on("error", (event: any) => {
+            if (destroyed || mapRef.current !== map) return;
 
-          map.addLayer({
-            id: INNER_LAYER_ID,
-            type: "circle",
-            source: SOURCE_ID,
-            paint: {
-              "circle-radius": 10.5,
-              "circle-color": ["get", "markerColor"],
-              "circle-opacity": 0.24,
-              "circle-stroke-width": 0,
-            },
-          });
+            if (
+              shouldFailOverMapTiler(event) &&
+              keyIndex + 1 < apiKeys.length &&
+              !fallbackScheduledForMap
+            ) {
+              fallbackScheduledForMap = true;
+              const cameraCenter = map.getCenter?.();
+              const nextCamera = {
+                center: [
+                  Number(cameraCenter?.lng ?? centerZoomRef.current.center[1]),
+                  Number(cameraCenter?.lat ?? centerZoomRef.current.center[0]),
+                ] as [number, number],
+                zoom: clampZoom(Number(map.getZoom?.() ?? centerZoomRef.current.zoom)),
+              };
 
-          map.addLayer({
-            id: CORE_LAYER_ID,
-            type: "circle",
-            source: SOURCE_ID,
-            paint: {
-              "circle-radius": 5.75,
-              "circle-color": ["get", "markerColor"],
-              "circle-opacity": 1,
-              "circle-stroke-color": "rgba(255,255,255,0.98)",
-              "circle-stroke-width": 2.2,
-            },
-          });
+              host.dataset.maptilerStatus = "fallback";
+              fallbackTimer = window.setTimeout(() => {
+                createMap(keyIndex + 1, nextCamera);
+              }, 0);
+              return;
+            }
 
-          map.on("click", CORE_LAYER_ID, (event: any) => {
-            const area = areaFromFeature(event.features?.[0]);
-            if (!area) return;
-            handlersRef.current.onMarkerClick?.(area);
-            setSelectedArea(area);
+            if (readyRef.current) return;
+            const message = event?.error?.message || "MapTiler globe failed to load";
+            host.dataset.maptilerStatus = "error";
+            host.dataset.maptilerError = String(message).slice(0, 240);
+            handlersRef.current.onStatusChange?.("error", String(message));
           });
+        };
 
-          map.on("mouseenter", CORE_LAYER_ID, () => {
-            if (map.getCanvas?.()) map.getCanvas().style.cursor = "pointer";
-          });
-          map.on("mouseleave", CORE_LAYER_ID, () => {
-            if (map.getCanvas?.()) map.getCanvas().style.cursor = "";
-          });
-
-          map.on("click", (event: any) => {
-            const hits = map.queryRenderedFeatures?.(event.point, { layers: [CORE_LAYER_ID] }) ?? [];
-            if (!hits.length) setSelectedArea(null);
-          });
-
-          readyRef.current = true;
-          host.dataset.maptilerStatus = "ready";
-          handlersRef.current.onStatusChange?.("ready");
-        });
-
-        map.on("error", (event: any) => {
-          if (destroyed || readyRef.current) return;
-          const message = event?.error?.message || "MapTiler globe failed to load";
-          host.dataset.maptilerStatus = "error";
-          host.dataset.maptilerError = String(message).slice(0, 240);
-          handlersRef.current.onStatusChange?.("error", String(message));
-        });
+        createMap(0);
       } catch (error: unknown) {
         if (destroyed) return;
         const message = error instanceof Error ? error.message : String(error);
@@ -280,6 +351,7 @@ export function AtlasMapTilerGlobe({
 
     return () => {
       destroyed = true;
+      if (fallbackTimer !== null) window.clearTimeout(fallbackTimer);
       readyRef.current = false;
       try {
         mapRef.current?.remove?.();
