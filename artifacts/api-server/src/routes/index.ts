@@ -9,6 +9,7 @@ import searchRouter from "./search";
 import analyticsRouter from "./analytics";
 import usersRouter from "./users";
 import invitationsRouter from "./invitations";
+import routingRouter from "./routing";
 import { requireAdmin } from "../middlewares/auth";
 
 const router: IRouter = Router();
@@ -27,6 +28,7 @@ if (appMode === "admin") {
 } else {
   router.use("/coverage", coverageRouter);
   router.use("/search-events", searchRouter);
+  router.use("/routing", routingRouter);
 }
 
 export default router;

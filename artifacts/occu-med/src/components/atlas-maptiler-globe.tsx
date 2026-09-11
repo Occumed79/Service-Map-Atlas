@@ -15,6 +15,7 @@ declare global {
 }
 
 type ReachMode = "off" | "radius" | "drive";
+type FeatureCollection = { type: "FeatureCollection"; features: any[]; [key: string]: unknown };
 
 const SOURCE_ID = "atlas-coverage-areas";
 const OUTER_LAYER_ID = "atlas-coverage-outer-halo";
@@ -85,16 +86,13 @@ function waitForMapTiler(timeoutMs = 20_000): Promise<MapTilerSdk> {
   });
 }
 
-function coverageGeoJson(areas: CoverageArea[], selectedService: string | null) {
+function coverageGeoJson(areas: CoverageArea[], selectedService: string | null): FeatureCollection {
   return {
     type: "FeatureCollection",
     features: areas.map((area) => ({
       type: "Feature",
       id: area.id,
-      geometry: {
-        type: "Point",
-        coordinates: [area.longitude, area.latitude],
-      },
+      geometry: { type: "Point", coordinates: [area.longitude, area.latitude] },
       properties: {
         coverageId: area.id,
         city: area.city,
@@ -138,11 +136,7 @@ function hexToCssRgba(hex: string, alpha = 1) {
 
 function shouldFailOverMapTiler(event: any) {
   const status = Number(
-    event?.error?.status ??
-      event?.error?.statusCode ??
-      event?.status ??
-      event?.statusCode ??
-      0,
+    event?.error?.status ?? event?.error?.statusCode ?? event?.status ?? event?.statusCode ?? 0,
   );
   if (status === 401 || status === 403 || status === 429) return true;
 
@@ -191,36 +185,88 @@ function circleCoordinates(center: [number, number], radiusMiles: number, steps 
 }
 
 function driveMinutesToEstimatedRadius(minutes: number) {
-  // Visual fallback until a road-network isochrone key is connected. This is
-  // intentionally conservative: ~36 effective radial miles per driving hour.
   return minutes * 0.6;
 }
 
-function reachGeoJson(anchor: [number, number] | null, mode: ReachMode, radiusMiles: number, driveMinutes: number) {
-  if (!anchor || mode === "off") return { type: "FeatureCollection", features: [] };
-  const bands = mode === "radius"
-    ? [25, 50, 75].map((value) => ({ value, miles: value, label: `${value} mi` }))
-    : [30, 60, 90].map((value) => ({ value, miles: driveMinutesToEstimatedRadius(value), label: `${value} min` }));
-  const selectedValue = mode === "radius" ? radiusMiles : driveMinutes;
-
+function circleFeature(anchor: [number, number], value: number, miles: number, label: string, estimated: number, active: boolean) {
   return {
-    type: "FeatureCollection",
-    features: bands.map((band) => ({
-      type: "Feature",
-      geometry: {
-        type: "Polygon",
-        coordinates: [circleCoordinates(anchor, band.miles)],
-      },
-      properties: {
-        active: band.value === selectedValue ? 1 : 0,
-        label: band.label,
-        bandValue: band.value,
-      },
-    })),
+    type: "Feature",
+    geometry: { type: "Polygon", coordinates: [circleCoordinates(anchor, miles)] },
+    properties: {
+      active: active ? 1 : 0,
+      label,
+      bandValue: value,
+      estimated,
+      source: estimated ? "atlas-estimate" : "atlas-radius",
+    },
   };
 }
 
-function anchorGeoJson(anchor: [number, number] | null) {
+function reachGeoJson(
+  anchor: [number, number] | null,
+  mode: ReachMode,
+  radiusMiles: number,
+  driveMinutes: number,
+  roadIsochrones: FeatureCollection | null,
+): FeatureCollection {
+  if (!anchor || mode === "off") return { type: "FeatureCollection", features: [] };
+
+  if (mode === "radius") {
+    return {
+      type: "FeatureCollection",
+      features: [25, 50, 75].map((value) =>
+        circleFeature(anchor, value, value, `${value} mi`, 0, value === radiusMiles),
+      ),
+    };
+  }
+
+  const roadFeatures = Array.isArray(roadIsochrones?.features)
+    ? roadIsochrones!.features
+        .filter((feature) => [30, 60].includes(Number(feature?.properties?.bandValue)))
+        .map((feature) => ({
+          ...feature,
+          properties: {
+            ...(feature.properties ?? {}),
+            active: Number(feature.properties?.bandValue) === driveMinutes ? 1 : 0,
+            estimated: 0,
+            source: "openrouteservice",
+          },
+        }))
+    : [];
+
+  if (roadFeatures.length) {
+    return {
+      type: "FeatureCollection",
+      features: [
+        ...roadFeatures,
+        circleFeature(
+          anchor,
+          90,
+          driveMinutesToEstimatedRadius(90),
+          "90 min estimate",
+          1,
+          driveMinutes === 90,
+        ),
+      ],
+    };
+  }
+
+  return {
+    type: "FeatureCollection",
+    features: [30, 60, 90].map((value) =>
+      circleFeature(
+        anchor,
+        value,
+        driveMinutesToEstimatedRadius(value),
+        `${value} min estimate`,
+        1,
+        value === driveMinutes,
+      ),
+    ),
+  };
+}
+
+function anchorGeoJson(anchor: [number, number] | null): FeatureCollection {
   return {
     type: "FeatureCollection",
     features: anchor ? [{
@@ -248,9 +294,7 @@ function greatCircleCoordinates(start: [number, number], end: [number, number], 
   const omega = Math.acos(dot);
   const sinOmega = Math.sin(omega);
 
-  if (Math.abs(sinOmega) < 1e-6) {
-    return [[start[1], start[0]], [end[1], end[0]]];
-  }
+  if (Math.abs(sinOmega) < 1e-6) return [[start[1], start[0]], [end[1], end[0]]];
 
   const coordinates: number[][] = [];
   for (let index = 0; index <= steps; index += 1) {
@@ -260,11 +304,49 @@ function greatCircleCoordinates(start: [number, number], end: [number, number], 
     const x = scaleA * a[0] + scaleB * b[0];
     const y = scaleA * a[1] + scaleB * b[1];
     const z = scaleA * a[2] + scaleB * b[2];
-    const latitude = Math.atan2(z, Math.sqrt(x * x + y * y));
-    const longitude = Math.atan2(y, x);
-    coordinates.push([toDegrees(longitude), toDegrees(latitude)]);
+    coordinates.push([
+      toDegrees(Math.atan2(y, x)),
+      toDegrees(Math.atan2(z, Math.sqrt(x * x + y * y))),
+    ]);
   }
   return coordinates;
+}
+
+function pointInRing(point: [number, number], ring: number[][]) {
+  const [x, y] = point;
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i, i += 1) {
+    const xi = Number(ring[i]?.[0]);
+    const yi = Number(ring[i]?.[1]);
+    const xj = Number(ring[j]?.[0]);
+    const yj = Number(ring[j]?.[1]);
+    const intersects = ((yi > y) !== (yj > y)) &&
+      (x < ((xj - xi) * (y - yi)) / ((yj - yi) || Number.EPSILON) + xi);
+    if (intersects) inside = !inside;
+  }
+  return inside;
+}
+
+function pointInGeometry(point: [number, number], geometry: any) {
+  if (geometry?.type === "Polygon") {
+    const rings = geometry.coordinates;
+    if (!Array.isArray(rings?.[0]) || !pointInRing(point, rings[0])) return false;
+    return !rings.slice(1).some((ring: number[][]) => pointInRing(point, ring));
+  }
+  if (geometry?.type === "MultiPolygon") {
+    return geometry.coordinates.some((polygon: number[][][]) => {
+      if (!Array.isArray(polygon?.[0]) || !pointInRing(point, polygon[0])) return false;
+      return !polygon.slice(1).some((ring: number[][]) => pointInRing(point, ring));
+    });
+  }
+  return false;
+}
+
+function selectedRoadFeature(roadIsochrones: FeatureCollection | null, driveMinutes: number) {
+  if (![30, 60].includes(driveMinutes)) return null;
+  return roadIsochrones?.features?.find(
+    (feature) => Number(feature?.properties?.bandValue) === driveMinutes,
+  ) ?? null;
 }
 
 function networkArcGeoJson(
@@ -275,9 +357,11 @@ function networkArcGeoJson(
   radiusMiles: number,
   driveMinutes: number,
   enabled: boolean,
-) {
+  roadIsochrones: FeatureCollection | null,
+): FeatureCollection {
   if (!anchor || !enabled) return { type: "FeatureCollection", features: [] };
 
+  const roadFeature = mode === "drive" ? selectedRoadFeature(roadIsochrones, driveMinutes) : null;
   const maxMiles = mode === "radius"
     ? radiusMiles
     : mode === "drive"
@@ -286,7 +370,10 @@ function networkArcGeoJson(
 
   const targets = areas
     .map((area) => ({ area, miles: distanceMiles(anchor, [area.latitude, area.longitude]) }))
-    .filter((item) => item.miles <= maxMiles)
+    .filter(({ area, miles }) => {
+      if (roadFeature?.geometry) return pointInGeometry([area.longitude, area.latitude], roadFeature.geometry);
+      return miles <= maxMiles;
+    })
     .sort((a, b) => a.miles - b.miles)
     .slice(0, mode === "off" ? 10 : 18);
 
@@ -343,13 +430,16 @@ export function AtlasMapTilerGlobe({
   const coverageRef = useRef(coverageAreas);
   const selectedServiceRef = useRef<string | null>(selectedService);
   const intelligenceRef = useRef({ searchAnchor, reachMode, radiusMiles, driveMinutes, showNetworkArcs });
+  const roadIsochronesRef = useRef<FeatureCollection | null>(null);
   const handlersRef = useRef({ onMarkerClick, onRequestCoverage, onStatusChange });
   const [selectedArea, setSelectedArea] = useState<CoverageArea | null>(null);
+  const [roadIsochrones, setRoadIsochrones] = useState<FeatureCollection | null>(null);
 
   centerZoomRef.current = { center, zoom };
   coverageRef.current = coverageAreas;
   selectedServiceRef.current = selectedService;
   intelligenceRef.current = { searchAnchor, reachMode, radiusMiles, driveMinutes, showNetworkArcs };
+  roadIsochronesRef.current = roadIsochrones;
   handlersRef.current = { onMarkerClick, onRequestCoverage, onStatusChange };
 
   useEffect(() => {
@@ -359,6 +449,38 @@ export function AtlasMapTilerGlobe({
   useEffect(() => {
     if (selectedArea && !coverageAreas.some((area) => area.id === selectedArea.id)) setSelectedArea(null);
   }, [coverageAreas, selectedArea]);
+
+  useEffect(() => {
+    if (!searchAnchor || reachMode !== "drive") {
+      setRoadIsochrones(null);
+      return;
+    }
+
+    const controller = new AbortController();
+    void fetch("/api/routing/isochrones", {
+      method: "POST",
+      credentials: "include",
+      signal: controller.signal,
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ latitude: searchAnchor[0], longitude: searchAnchor[1] }),
+    })
+      .then(async (response) => {
+        if (!response.ok) throw new Error(`Routing API returned ${response.status}`);
+        return response.json();
+      })
+      .then((data) => {
+        if (!controller.signal.aborted && data?.type === "FeatureCollection") {
+          setRoadIsochrones(data as FeatureCollection);
+        }
+      })
+      .catch((error) => {
+        if (controller.signal.aborted) return;
+        console.warn("Atlas road isochrones unavailable; using conservative estimate.", error);
+        setRoadIsochrones(null);
+      });
+
+    return () => controller.abort();
+  }, [reachMode, searchAnchor]);
 
   useEffect(() => {
     let destroyed = false;
@@ -375,16 +497,13 @@ export function AtlasMapTilerGlobe({
         if (destroyed) return;
 
         const apiKeys = getMapTilerApiKeys();
-        if (!apiKeys.length) {
-          throw new Error("No MAP_TILER_API_KEY values are available to the Atlas client build");
-        }
+        if (!apiKeys.length) throw new Error("No MAP_TILER_API_KEY values are available to the Atlas client build");
 
         const createMap = (
           keyIndex: number,
           preservedCamera?: { center: [number, number]; zoom: number },
         ) => {
           if (destroyed) return;
-
           const apiKey = apiKeys[keyIndex];
           if (!apiKey) return;
 
@@ -406,14 +525,11 @@ export function AtlasMapTilerGlobe({
           handlersRef.current.onStatusChange?.("loading");
 
           const current = centerZoomRef.current;
-          const mapCenter = preservedCamera?.center ?? [current.center[1], current.center[0]];
-          const mapZoom = preservedCamera?.zoom ?? clampZoom(current.zoom);
-
           const map = new sdk.Map({
             container: host,
             style: sdk.MapStyle.STREETS,
-            center: mapCenter,
-            zoom: clampZoom(mapZoom),
+            center: preservedCamera?.center ?? [current.center[1], current.center[0]],
+            zoom: clampZoom(preservedCamera?.zoom ?? current.zoom),
             minZoom: MIN_ZOOM,
             maxZoom: MAX_ZOOM,
             projection: "globe",
@@ -424,8 +540,8 @@ export function AtlasMapTilerGlobe({
 
           map.on("load", () => {
             if (destroyed || mapRef.current !== map) return;
-
             const intelligence = intelligenceRef.current;
+            const roadData = roadIsochronesRef.current;
 
             map.addSource(RING_SOURCE_ID, {
               type: "geojson",
@@ -434,6 +550,7 @@ export function AtlasMapTilerGlobe({
                 intelligence.reachMode,
                 intelligence.radiusMiles,
                 intelligence.driveMinutes,
+                roadData,
               ),
             });
 
@@ -442,8 +559,8 @@ export function AtlasMapTilerGlobe({
               type: "fill",
               source: RING_SOURCE_ID,
               paint: {
-                "fill-color": "#63E6FF",
-                "fill-opacity": ["case", ["==", ["get", "active"], 1], 0.055, 0.014],
+                "fill-color": ["case", ["==", ["get", "estimated"], 1], "#7BD7FF", "#63E6FF"],
+                "fill-opacity": ["case", ["==", ["get", "active"], 1], 0.06, 0.014],
               },
             });
 
@@ -452,9 +569,9 @@ export function AtlasMapTilerGlobe({
               type: "line",
               source: RING_SOURCE_ID,
               paint: {
-                "line-color": "#7BEAFF",
+                "line-color": ["case", ["==", ["get", "estimated"], 1], "#74CFFF", "#7BEAFF"],
                 "line-width": ["case", ["==", ["get", "active"], 1], 8, 4],
-                "line-opacity": ["case", ["==", ["get", "active"], 1], 0.22, 0.09],
+                "line-opacity": ["case", ["==", ["get", "active"], 1], 0.24, 0.09],
                 "line-blur": 5,
               },
             });
@@ -464,9 +581,9 @@ export function AtlasMapTilerGlobe({
               type: "line",
               source: RING_SOURCE_ID,
               paint: {
-                "line-color": "#B9F6FF",
+                "line-color": ["case", ["==", ["get", "estimated"], 1], "#B5E7FF", "#B9F6FF"],
                 "line-width": ["case", ["==", ["get", "active"], 1], 1.8, 1],
-                "line-opacity": ["case", ["==", ["get", "active"], 1], 0.92, 0.42],
+                "line-opacity": ["case", ["==", ["get", "active"], 1], 0.94, 0.42],
               },
             });
 
@@ -480,6 +597,7 @@ export function AtlasMapTilerGlobe({
                 intelligence.radiusMiles,
                 intelligence.driveMinutes,
                 intelligence.showNetworkArcs,
+                roadData,
               ),
             });
 
@@ -608,11 +726,7 @@ export function AtlasMapTilerGlobe({
           map.on("error", (event: any) => {
             if (destroyed || mapRef.current !== map) return;
 
-            if (
-              shouldFailOverMapTiler(event) &&
-              keyIndex + 1 < apiKeys.length &&
-              !fallbackScheduledForMap
-            ) {
+            if (shouldFailOverMapTiler(event) && keyIndex + 1 < apiKeys.length && !fallbackScheduledForMap) {
               fallbackScheduledForMap = true;
               const cameraCenter = map.getCenter?.();
               const nextCamera = {
@@ -622,11 +736,8 @@ export function AtlasMapTilerGlobe({
                 ] as [number, number],
                 zoom: clampZoom(Number(map.getZoom?.() ?? centerZoomRef.current.zoom)),
               };
-
               host.dataset.maptilerStatus = "fallback";
-              fallbackTimer = window.setTimeout(() => {
-                createMap(keyIndex + 1, nextCamera);
-              }, 0);
+              fallbackTimer = window.setTimeout(() => createMap(keyIndex + 1, nextCamera), 0);
               return;
             }
 
@@ -685,8 +796,11 @@ export function AtlasMapTilerGlobe({
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !readyRef.current) return;
+    const roadData = roadIsochrones;
     map.getSource?.(SOURCE_ID)?.setData?.(coverageGeoJson(coverageAreas, selectedService));
-    map.getSource?.(RING_SOURCE_ID)?.setData?.(reachGeoJson(searchAnchor, reachMode, radiusMiles, driveMinutes));
+    map.getSource?.(RING_SOURCE_ID)?.setData?.(
+      reachGeoJson(searchAnchor, reachMode, radiusMiles, driveMinutes, roadData),
+    );
     map.getSource?.(ANCHOR_SOURCE_ID)?.setData?.(anchorGeoJson(searchAnchor));
     map.getSource?.(ARC_SOURCE_ID)?.setData?.(networkArcGeoJson(
       searchAnchor,
@@ -696,8 +810,9 @@ export function AtlasMapTilerGlobe({
       radiusMiles,
       driveMinutes,
       showNetworkArcs,
+      roadData,
     ));
-  }, [coverageAreas, selectedService, searchAnchor, reachMode, radiusMiles, driveMinutes, showNetworkArcs]);
+  }, [coverageAreas, selectedService, searchAnchor, reachMode, radiusMiles, driveMinutes, showNetworkArcs, roadIsochrones]);
 
   const cardColor = selectedArea ? colorForArea(selectedArea, selectedService) : SERVICE_COLORS["Occupational Medicine"];
   const cardPrimaryService = selectedArea ? serviceForArea(selectedArea, selectedService) : "";

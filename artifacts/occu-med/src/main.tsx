@@ -6,5 +6,6 @@ import "./admin-theme.css";
 import "./brand-overrides.css";
 import "./client-map-fixes.css";
 import "./arcgis-atlas-runtime.css";
+import "./ors-routing.css";
 
 createRoot(document.getElementById("root")!).render(<App />);

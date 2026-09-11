@@ -1,0 +1,10 @@
+/* Atlas drive reach now uses real OpenRouteService 30/60 minute polygons. */
+.atlas-tools-estimate {
+  font-size: 0 !important;
+}
+
+.atlas-tools-estimate::after {
+  content: "road-time · 90 min estimated";
+  font-size: 9px;
+  letter-spacing: .01em;
+}
