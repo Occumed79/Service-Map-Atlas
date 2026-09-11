@@ -7,5 +7,6 @@ import "./brand-overrides.css";
 import "./client-map-fixes.css";
 import "./arcgis-atlas-runtime.css";
 import "./ors-routing.css";
+import "./atlas-visual-repair.css";
 
 createRoot(document.getElementById("root")!).render(<App />);
