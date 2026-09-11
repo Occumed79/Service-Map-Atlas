@@ -1,12 +1,10 @@
 import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Globe2, Map as MapIcon } from "lucide-react";
-import {
-  AtlasArcgisMap as AtlasArcgisFlatMap,
-  SERVICE_COLORS,
-  type CoverageArea,
-} from "@/components/atlas-arcgis-flat-map";
+import { AtlasArcgisFlatMap, type CoverageArea } from "@/components/atlas-arcgis-flat-map-v2";
+import { SERVICE_COLORS } from "@/components/atlas-service-palette";
 
-export { SERVICE_COLORS, type CoverageArea } from "@/components/atlas-arcgis-flat-map";
+export { SERVICE_COLORS } from "@/components/atlas-service-palette";
+export type { CoverageArea } from "@/components/atlas-arcgis-flat-map-v2";
 
 const LazyMapTilerGlobe = lazy(async () => {
   const module = await import("@/components/atlas-maptiler-globe");
@@ -33,13 +31,6 @@ type AtlasMapProps = {
 type MapMode = "globe" | "flat";
 type MapStatus = "loading" | "ready" | "error";
 
-/**
- * Atlas map controller.
- *
- * Default: MapTiler 3D globe.
- * Optional: the existing ArcGIS flat 2D map, preserved as its own renderer.
- * Both renderers receive the exact same coverageAreas collection and filters.
- */
 export function AtlasArcgisMap({
   center,
   zoom,
@@ -60,8 +51,6 @@ export function AtlasArcgisMap({
   const parentStatusRef = useRef(onStatusChange);
   parentStatusRef.current = onStatusChange;
 
-  // Home historically renders ArcGIS-specific status copy. The controller owns
-  // provider-specific status now, so suppress that legacy overlay before paint.
   useLayoutEffect(() => {
     parentStatusRef.current?.("ready");
   }, []);
@@ -74,7 +63,6 @@ export function AtlasArcgisMap({
   const handleRendererStatus = (nextStatus: MapStatus, message?: string) => {
     setStatus(nextStatus);
     setError(message ?? null);
-    // Keep the legacy parent status hidden; detailed status is shown here.
     parentStatusRef.current?.("ready");
   };
 
@@ -83,6 +71,11 @@ export function AtlasArcgisMap({
     zoom,
     coverageAreas,
     selectedService,
+    searchAnchor,
+    reachMode,
+    radiusMiles,
+    driveMinutes,
+    showNetworkArcs,
     onMarkerClick,
     onRequestCoverage,
     onStatusChange: handleRendererStatus,
@@ -92,14 +85,7 @@ export function AtlasArcgisMap({
     <>
       {mode === "globe" ? (
         <Suspense fallback={null}>
-          <LazyMapTilerGlobe
-            {...commonProps}
-            searchAnchor={searchAnchor}
-            reachMode={reachMode}
-            radiusMiles={radiusMiles}
-            driveMinutes={driveMinutes}
-            showNetworkArcs={showNetworkArcs}
-          />
+          <LazyMapTilerGlobe {...commonProps} />
         </Suspense>
       ) : (
         <AtlasArcgisFlatMap {...commonProps} />
