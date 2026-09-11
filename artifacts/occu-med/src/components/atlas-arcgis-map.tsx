@@ -13,11 +13,18 @@ const LazyMapTilerGlobe = lazy(async () => {
   return { default: module.AtlasMapTilerGlobe };
 });
 
+type ReachMode = "off" | "radius" | "drive";
+
 type AtlasMapProps = {
   center: [number, number];
   zoom: number;
   coverageAreas: CoverageArea[];
   selectedService?: string | null;
+  searchAnchor?: [number, number] | null;
+  reachMode?: ReachMode;
+  radiusMiles?: number;
+  driveMinutes?: number;
+  showNetworkArcs?: boolean;
   onMarkerClick?: (area: CoverageArea) => void;
   onRequestCoverage?: (area: CoverageArea) => void;
   onStatusChange?: (status: "loading" | "ready" | "error", message?: string) => void;
@@ -38,6 +45,11 @@ export function AtlasArcgisMap({
   zoom,
   coverageAreas,
   selectedService = null,
+  searchAnchor = null,
+  reachMode = "off",
+  radiusMiles = 75,
+  driveMinutes = 60,
+  showNetworkArcs = true,
   onMarkerClick,
   onRequestCoverage,
   onStatusChange,
@@ -80,7 +92,14 @@ export function AtlasArcgisMap({
     <>
       {mode === "globe" ? (
         <Suspense fallback={null}>
-          <LazyMapTilerGlobe {...commonProps} />
+          <LazyMapTilerGlobe
+            {...commonProps}
+            searchAnchor={searchAnchor}
+            reachMode={reachMode}
+            radiusMiles={radiusMiles}
+            driveMinutes={driveMinutes}
+            showNetworkArcs={showNetworkArcs}
+          />
         </Suspense>
       ) : (
         <AtlasArcgisFlatMap {...commonProps} />
