@@ -14,12 +14,25 @@ declare global {
   }
 }
 
+type ReachMode = "off" | "radius" | "drive";
+
 const SOURCE_ID = "atlas-coverage-areas";
 const OUTER_LAYER_ID = "atlas-coverage-outer-halo";
 const INNER_LAYER_ID = "atlas-coverage-inner-halo";
 const CORE_LAYER_ID = "atlas-coverage-core";
+const RING_SOURCE_ID = "atlas-reach-rings";
+const RING_FILL_LAYER_ID = "atlas-reach-ring-fill";
+const RING_GLOW_LAYER_ID = "atlas-reach-ring-glow";
+const RING_CORE_LAYER_ID = "atlas-reach-ring-core";
+const ARC_SOURCE_ID = "atlas-network-arcs";
+const ARC_GLOW_LAYER_ID = "atlas-network-arc-glow";
+const ARC_CORE_LAYER_ID = "atlas-network-arc-core";
+const ANCHOR_SOURCE_ID = "atlas-search-anchor";
+const ANCHOR_GLOW_LAYER_ID = "atlas-search-anchor-glow";
+const ANCHOR_CORE_LAYER_ID = "atlas-search-anchor-core";
 const MIN_ZOOM = 1.5;
 const MAX_ZOOM = 18;
+const EARTH_RADIUS_MILES = 3958.8;
 
 const SERVICE_ORDER = [
   "Dental",
@@ -137,11 +150,173 @@ function shouldFailOverMapTiler(event: any) {
   return /api\s*key|api-key|unauthori[sz]ed|forbidden|quota|rate\s*limit|too many requests|usage\s*limit/.test(message);
 }
 
+function toRadians(value: number) {
+  return (value * Math.PI) / 180;
+}
+
+function toDegrees(value: number) {
+  return (value * 180) / Math.PI;
+}
+
+function distanceMiles(a: [number, number], b: [number, number]) {
+  const dLat = toRadians(b[0] - a[0]);
+  const dLon = toRadians(b[1] - a[1]);
+  const lat1 = toRadians(a[0]);
+  const lat2 = toRadians(b[0]);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
+  return 2 * EARTH_RADIUS_MILES * Math.asin(Math.sqrt(h));
+}
+
+function destinationPoint(center: [number, number], radiusMiles: number, bearingRadians: number) {
+  const angularDistance = radiusMiles / EARTH_RADIUS_MILES;
+  const latitude = toRadians(center[0]);
+  const longitude = toRadians(center[1]);
+  const nextLatitude = Math.asin(
+    Math.sin(latitude) * Math.cos(angularDistance) +
+      Math.cos(latitude) * Math.sin(angularDistance) * Math.cos(bearingRadians),
+  );
+  const nextLongitude = longitude + Math.atan2(
+    Math.sin(bearingRadians) * Math.sin(angularDistance) * Math.cos(latitude),
+    Math.cos(angularDistance) - Math.sin(latitude) * Math.sin(nextLatitude),
+  );
+  return [toDegrees(nextLongitude), toDegrees(nextLatitude)];
+}
+
+function circleCoordinates(center: [number, number], radiusMiles: number, steps = 112) {
+  const coordinates: number[][] = [];
+  for (let index = 0; index <= steps; index += 1) {
+    coordinates.push(destinationPoint(center, radiusMiles, (index / steps) * Math.PI * 2));
+  }
+  return coordinates;
+}
+
+function driveMinutesToEstimatedRadius(minutes: number) {
+  // Visual fallback until a road-network isochrone key is connected. This is
+  // intentionally conservative: ~36 effective radial miles per driving hour.
+  return minutes * 0.6;
+}
+
+function reachGeoJson(anchor: [number, number] | null, mode: ReachMode, radiusMiles: number, driveMinutes: number) {
+  if (!anchor || mode === "off") return { type: "FeatureCollection", features: [] };
+  const bands = mode === "radius"
+    ? [25, 50, 75].map((value) => ({ value, miles: value, label: `${value} mi` }))
+    : [30, 60, 90].map((value) => ({ value, miles: driveMinutesToEstimatedRadius(value), label: `${value} min` }));
+  const selectedValue = mode === "radius" ? radiusMiles : driveMinutes;
+
+  return {
+    type: "FeatureCollection",
+    features: bands.map((band) => ({
+      type: "Feature",
+      geometry: {
+        type: "Polygon",
+        coordinates: [circleCoordinates(anchor, band.miles)],
+      },
+      properties: {
+        active: band.value === selectedValue ? 1 : 0,
+        label: band.label,
+        bandValue: band.value,
+      },
+    })),
+  };
+}
+
+function anchorGeoJson(anchor: [number, number] | null) {
+  return {
+    type: "FeatureCollection",
+    features: anchor ? [{
+      type: "Feature",
+      geometry: { type: "Point", coordinates: [anchor[1], anchor[0]] },
+      properties: {},
+    }] : [],
+  };
+}
+
+function latLonToVector(point: [number, number]) {
+  const latitude = toRadians(point[0]);
+  const longitude = toRadians(point[1]);
+  return [
+    Math.cos(latitude) * Math.cos(longitude),
+    Math.cos(latitude) * Math.sin(longitude),
+    Math.sin(latitude),
+  ];
+}
+
+function greatCircleCoordinates(start: [number, number], end: [number, number], steps = 44) {
+  const a = latLonToVector(start);
+  const b = latLonToVector(end);
+  const dot = Math.max(-1, Math.min(1, a[0] * b[0] + a[1] * b[1] + a[2] * b[2]));
+  const omega = Math.acos(dot);
+  const sinOmega = Math.sin(omega);
+
+  if (Math.abs(sinOmega) < 1e-6) {
+    return [[start[1], start[0]], [end[1], end[0]]];
+  }
+
+  const coordinates: number[][] = [];
+  for (let index = 0; index <= steps; index += 1) {
+    const t = index / steps;
+    const scaleA = Math.sin((1 - t) * omega) / sinOmega;
+    const scaleB = Math.sin(t * omega) / sinOmega;
+    const x = scaleA * a[0] + scaleB * b[0];
+    const y = scaleA * a[1] + scaleB * b[1];
+    const z = scaleA * a[2] + scaleB * b[2];
+    const latitude = Math.atan2(z, Math.sqrt(x * x + y * y));
+    const longitude = Math.atan2(y, x);
+    coordinates.push([toDegrees(longitude), toDegrees(latitude)]);
+  }
+  return coordinates;
+}
+
+function networkArcGeoJson(
+  anchor: [number, number] | null,
+  areas: CoverageArea[],
+  selectedService: string | null,
+  mode: ReachMode,
+  radiusMiles: number,
+  driveMinutes: number,
+  enabled: boolean,
+) {
+  if (!anchor || !enabled) return { type: "FeatureCollection", features: [] };
+
+  const maxMiles = mode === "radius"
+    ? radiusMiles
+    : mode === "drive"
+      ? driveMinutesToEstimatedRadius(driveMinutes)
+      : Number.POSITIVE_INFINITY;
+
+  const targets = areas
+    .map((area) => ({ area, miles: distanceMiles(anchor, [area.latitude, area.longitude]) }))
+    .filter((item) => item.miles <= maxMiles)
+    .sort((a, b) => a.miles - b.miles)
+    .slice(0, mode === "off" ? 10 : 18);
+
+  return {
+    type: "FeatureCollection",
+    features: targets.map(({ area, miles }) => ({
+      type: "Feature",
+      geometry: {
+        type: "LineString",
+        coordinates: greatCircleCoordinates(anchor, [area.latitude, area.longitude]),
+      },
+      properties: {
+        coverageId: area.id,
+        arcColor: colorForArea(area, selectedService),
+        distanceMiles: Math.round(miles),
+      },
+    })),
+  };
+}
+
 type AtlasMapTilerGlobeProps = {
   center: [number, number];
   zoom: number;
   coverageAreas: CoverageArea[];
   selectedService?: string | null;
+  searchAnchor?: [number, number] | null;
+  reachMode?: ReachMode;
+  radiusMiles?: number;
+  driveMinutes?: number;
+  showNetworkArcs?: boolean;
   onMarkerClick?: (area: CoverageArea) => void;
   onRequestCoverage?: (area: CoverageArea) => void;
   onStatusChange?: (status: "loading" | "ready" | "error", message?: string) => void;
@@ -152,6 +327,11 @@ export function AtlasMapTilerGlobe({
   zoom,
   coverageAreas,
   selectedService = null,
+  searchAnchor = null,
+  reachMode = "off",
+  radiusMiles = 75,
+  driveMinutes = 60,
+  showNetworkArcs = true,
   onMarkerClick,
   onRequestCoverage,
   onStatusChange,
@@ -162,17 +342,23 @@ export function AtlasMapTilerGlobe({
   const centerZoomRef = useRef({ center, zoom });
   const coverageRef = useRef(coverageAreas);
   const selectedServiceRef = useRef<string | null>(selectedService);
+  const intelligenceRef = useRef({ searchAnchor, reachMode, radiusMiles, driveMinutes, showNetworkArcs });
   const handlersRef = useRef({ onMarkerClick, onRequestCoverage, onStatusChange });
   const [selectedArea, setSelectedArea] = useState<CoverageArea | null>(null);
 
   centerZoomRef.current = { center, zoom };
   coverageRef.current = coverageAreas;
   selectedServiceRef.current = selectedService;
+  intelligenceRef.current = { searchAnchor, reachMode, radiusMiles, driveMinutes, showNetworkArcs };
   handlersRef.current = { onMarkerClick, onRequestCoverage, onStatusChange };
 
   useEffect(() => {
     setSelectedArea(null);
   }, [selectedService]);
+
+  useEffect(() => {
+    if (selectedArea && !coverageAreas.some((area) => area.id === selectedArea.id)) setSelectedArea(null);
+  }, [coverageAreas, selectedArea]);
 
   useEffect(() => {
     let destroyed = false;
@@ -239,6 +425,118 @@ export function AtlasMapTilerGlobe({
           map.on("load", () => {
             if (destroyed || mapRef.current !== map) return;
 
+            const intelligence = intelligenceRef.current;
+
+            map.addSource(RING_SOURCE_ID, {
+              type: "geojson",
+              data: reachGeoJson(
+                intelligence.searchAnchor,
+                intelligence.reachMode,
+                intelligence.radiusMiles,
+                intelligence.driveMinutes,
+              ),
+            });
+
+            map.addLayer({
+              id: RING_FILL_LAYER_ID,
+              type: "fill",
+              source: RING_SOURCE_ID,
+              paint: {
+                "fill-color": "#63E6FF",
+                "fill-opacity": ["case", ["==", ["get", "active"], 1], 0.055, 0.014],
+              },
+            });
+
+            map.addLayer({
+              id: RING_GLOW_LAYER_ID,
+              type: "line",
+              source: RING_SOURCE_ID,
+              paint: {
+                "line-color": "#7BEAFF",
+                "line-width": ["case", ["==", ["get", "active"], 1], 8, 4],
+                "line-opacity": ["case", ["==", ["get", "active"], 1], 0.22, 0.09],
+                "line-blur": 5,
+              },
+            });
+
+            map.addLayer({
+              id: RING_CORE_LAYER_ID,
+              type: "line",
+              source: RING_SOURCE_ID,
+              paint: {
+                "line-color": "#B9F6FF",
+                "line-width": ["case", ["==", ["get", "active"], 1], 1.8, 1],
+                "line-opacity": ["case", ["==", ["get", "active"], 1], 0.92, 0.42],
+              },
+            });
+
+            map.addSource(ARC_SOURCE_ID, {
+              type: "geojson",
+              data: networkArcGeoJson(
+                intelligence.searchAnchor,
+                coverageRef.current,
+                selectedServiceRef.current,
+                intelligence.reachMode,
+                intelligence.radiusMiles,
+                intelligence.driveMinutes,
+                intelligence.showNetworkArcs,
+              ),
+            });
+
+            map.addLayer({
+              id: ARC_GLOW_LAYER_ID,
+              type: "line",
+              source: ARC_SOURCE_ID,
+              paint: {
+                "line-color": ["get", "arcColor"],
+                "line-width": 8,
+                "line-opacity": 0.22,
+                "line-blur": 5,
+              },
+            });
+
+            map.addLayer({
+              id: ARC_CORE_LAYER_ID,
+              type: "line",
+              source: ARC_SOURCE_ID,
+              paint: {
+                "line-color": ["get", "arcColor"],
+                "line-width": 1.65,
+                "line-opacity": 0.92,
+              },
+            });
+
+            map.addSource(ANCHOR_SOURCE_ID, {
+              type: "geojson",
+              data: anchorGeoJson(intelligence.searchAnchor),
+            });
+
+            map.addLayer({
+              id: ANCHOR_GLOW_LAYER_ID,
+              type: "circle",
+              source: ANCHOR_SOURCE_ID,
+              paint: {
+                "circle-radius": 19,
+                "circle-color": "#9AF4FF",
+                "circle-opacity": 0.25,
+                "circle-blur": 0.75,
+                "circle-stroke-width": 0,
+              },
+            });
+
+            map.addLayer({
+              id: ANCHOR_CORE_LAYER_ID,
+              type: "circle",
+              source: ANCHOR_SOURCE_ID,
+              paint: {
+                "circle-radius": 5.5,
+                "circle-color": "#ECFDFF",
+                "circle-opacity": 1,
+                "circle-stroke-color": "rgba(86,225,255,0.9)",
+                "circle-stroke-width": 2.5,
+              },
+            });
+
             map.addSource(SOURCE_ID, {
               type: "geojson",
               data: coverageGeoJson(coverageRef.current, selectedServiceRef.current),
@@ -249,9 +547,10 @@ export function AtlasMapTilerGlobe({
               type: "circle",
               source: SOURCE_ID,
               paint: {
-                "circle-radius": 15,
+                "circle-radius": 23,
                 "circle-color": ["get", "markerColor"],
-                "circle-opacity": 0.1,
+                "circle-opacity": 0.11,
+                "circle-blur": 0.82,
                 "circle-stroke-width": 0,
               },
             });
@@ -261,9 +560,10 @@ export function AtlasMapTilerGlobe({
               type: "circle",
               source: SOURCE_ID,
               paint: {
-                "circle-radius": 10.5,
+                "circle-radius": 12.5,
                 "circle-color": ["get", "markerColor"],
-                "circle-opacity": 0.24,
+                "circle-opacity": 0.38,
+                "circle-blur": 0.36,
                 "circle-stroke-width": 0,
               },
             });
@@ -273,11 +573,11 @@ export function AtlasMapTilerGlobe({
               type: "circle",
               source: SOURCE_ID,
               paint: {
-                "circle-radius": 5.75,
+                "circle-radius": 5.8,
                 "circle-color": ["get", "markerColor"],
                 "circle-opacity": 1,
                 "circle-stroke-color": "rgba(255,255,255,0.98)",
-                "circle-stroke-width": 2.2,
+                "circle-stroke-width": 2.35,
               },
             });
 
@@ -366,23 +666,44 @@ export function AtlasMapTilerGlobe({
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !readyRef.current) return;
-    map.easeTo?.({
+    const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false;
+    map.stop?.();
+    const nextCamera = {
       center: [center[1], center[0]],
       zoom: clampZoom(zoom),
-      duration: 900,
-      essential: true,
-    });
+      pitch: zoom >= 6 ? 28 : 0,
+      bearing: 0,
+      duration: reducedMotion ? 0 : 2600,
+      curve: 1.42,
+      speed: 0.72,
+      essential: false,
+    };
+    if (typeof map.flyTo === "function") map.flyTo(nextCamera);
+    else map.easeTo?.({ ...nextCamera, duration: reducedMotion ? 0 : 1100 });
   }, [center, zoom]);
 
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !readyRef.current) return;
-    const source = map.getSource?.(SOURCE_ID);
-    source?.setData?.(coverageGeoJson(coverageAreas, selectedService));
-  }, [coverageAreas, selectedService]);
+    map.getSource?.(SOURCE_ID)?.setData?.(coverageGeoJson(coverageAreas, selectedService));
+    map.getSource?.(RING_SOURCE_ID)?.setData?.(reachGeoJson(searchAnchor, reachMode, radiusMiles, driveMinutes));
+    map.getSource?.(ANCHOR_SOURCE_ID)?.setData?.(anchorGeoJson(searchAnchor));
+    map.getSource?.(ARC_SOURCE_ID)?.setData?.(networkArcGeoJson(
+      searchAnchor,
+      coverageAreas,
+      selectedService,
+      reachMode,
+      radiusMiles,
+      driveMinutes,
+      showNetworkArcs,
+    ));
+  }, [coverageAreas, selectedService, searchAnchor, reachMode, radiusMiles, driveMinutes, showNetworkArcs]);
 
   const cardColor = selectedArea ? colorForArea(selectedArea, selectedService) : SERVICE_COLORS["Occupational Medicine"];
   const cardPrimaryService = selectedArea ? serviceForArea(selectedArea, selectedService) : "";
+  const cardDistance = selectedArea && searchAnchor
+    ? distanceMiles(searchAnchor, [selectedArea.latitude, selectedArea.longitude])
+    : null;
 
   return (
     <>
@@ -417,6 +738,7 @@ export function AtlasMapTilerGlobe({
           <p className="atlas-coverage-card-place">
             {selectedArea.city}{selectedArea.region ? `, ${selectedArea.region}` : ""}
             {selectedArea.country ? ` · ${selectedArea.country}` : ""}
+            {cardDistance !== null ? ` · ${Math.round(cardDistance)} mi from search` : ""}
           </p>
 
           <div className="atlas-coverage-card-services">
@@ -426,8 +748,8 @@ export function AtlasMapTilerGlobe({
                 <span
                   key={service}
                   style={{
-                    borderColor: hexToCssRgba(serviceColor, 0.25),
-                    background: hexToCssRgba(serviceColor, 0.10),
+                    borderColor: hexToCssRgba(serviceColor, 0.3),
+                    background: hexToCssRgba(serviceColor, 0.12),
                     color: serviceColor,
                   }}
                 >
@@ -441,7 +763,7 @@ export function AtlasMapTilerGlobe({
           </div>
 
           <p className="atlas-coverage-card-note">
-            Provider identity is protected in the Atlas. Occu-Med confirms the appropriate network location and final availability during coordination.
+            Provider details are protected in Atlas and confirmed during coordination.
           </p>
 
           <button
