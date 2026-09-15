@@ -87,7 +87,7 @@ export const TECH_API_KEY_REGISTRY: Record<TechApiKeyId, TechApiKeyRegistration>
     provider: "MapTiler",
     renderVariable: "MAP_TILER_API_KEY_6",
     clientVariable: "VITE_MAP_TILER_API_KEY_6",
-    purpose: "3D globe Atlas map — backup key 6",
+    purpose: "Interactive holographic globe — dedicated preferred key",
     priority: 6,
     getValue: () => String(import.meta.env.VITE_MAP_TILER_API_KEY_6 || "").trim(),
   },
@@ -107,14 +107,18 @@ export function getTechApiKey(id: TechApiKeyId) {
 }
 
 /**
- * Returns the available MapTiler key pool in strict priority order.
- * Empty values and accidental duplicate keys are removed so failover only
- * attempts genuinely usable alternatives.
+ * Returns the available MapTiler key pool in priority order. A caller can
+ * promote one key for a dedicated map surface while retaining the standard
+ * pool as ordered failover. Empty values and duplicates are removed.
  */
-export function getMapTilerApiKeys() {
+export function getMapTilerApiKeys(preferredId: MapTilerApiKeyId = "maptiler6") {
+  const orderedIds = preferredId
+    ? [preferredId, ...MAPTILER_KEY_IDS.filter((id) => id !== preferredId)]
+    : MAPTILER_KEY_IDS;
+
   return Array.from(
     new Set(
-      MAPTILER_KEY_IDS
+      orderedIds
         .map((id) => TECH_API_KEY_REGISTRY[id].getValue())
         .filter((value): value is string => Boolean(value)),
     ),
