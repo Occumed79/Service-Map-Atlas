@@ -7,8 +7,8 @@ export { SERVICE_COLORS } from "@/components/atlas-service-palette";
 export type { CoverageArea } from "@/components/atlas-arcgis-flat-map-v2";
 
 const LazyMapTilerGlobe = lazy(async () => {
-  const module = await import("@/components/atlas-maptiler-globe");
-  return { default: module.AtlasMapTilerGlobe };
+  const module = await import("@/components/atlas-holographic-maptiler-globe");
+  return { default: module.AtlasHolographicMapTilerGlobe };
 });
 
 type ReachMode = "off" | "radius" | "drive";
