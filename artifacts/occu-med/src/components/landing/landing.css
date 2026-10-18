@@ -1,4 +1,6 @@
 .atlas-landing {
+  position: relative;
+  isolation: isolate;
   min-height: 100svh;
   width: 100%;
   padding: clamp(28px, 4vh, 48px) 20px 0;
@@ -15,6 +17,15 @@
     "Segoe UI",
     sans-serif;
 }
+/* Static, low-contrast stars stay behind the globe and entrance effect. */
+.atlas-landing::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: url("./stars.svg") center top / 1440px 1000px repeat;
+}
 .atlas-landing-branding {
   width: 100%;
   display: flex;
@@ -25,7 +36,7 @@
 }
 .atlas-landing-logo {
   display: block;
-  width: clamp(280px, 26vw, 360px);
+  width: clamp(220px, 20vw, 270px);
   aspect-ratio: 645 / 352;
   margin: 0 auto 18px;
   flex: none;
@@ -114,7 +125,7 @@
     padding: 28px 16px 0;
   }
   .atlas-landing-logo {
-    width: 260px;
+    width: 210px;
     margin-bottom: 18px;
   }
   .atlas-landing h1 {
