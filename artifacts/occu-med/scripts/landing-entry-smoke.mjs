@@ -121,6 +121,17 @@ try {
     await page
       .getByRole("heading", { name: "International Service Map", exact: true })
       .waitFor();
+    const systemFonts = await page.evaluate(() => ({
+      body: getComputedStyle(document.body).fontFamily,
+      landing: getComputedStyle(document.querySelector(".atlas-landing")).fontFamily,
+      button: getComputedStyle(document.querySelector(".atlas-landing-enter")).fontFamily,
+      remoteFonts: document.querySelectorAll('link[href*="fonts.googleapis.com"]').length,
+    }));
+    for (const family of [systemFonts.body, systemFonts.landing, systemFonts.button]) {
+      assert.match(family, /-apple-system/, "Apple system font is preferred");
+      assert.doesNotMatch(family, /Inter/, "No Inter override");
+    }
+    assert.equal(systemFonts.remoteFonts, 0, "No external font download");
     assert.equal(
       await page
         .getByRole("button", { name: "Search map", exact: true })
