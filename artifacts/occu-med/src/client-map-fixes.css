@@ -17,7 +17,11 @@
 .client-app .atlas-header-search-only .atlas-filter-rail {
   grid-column: 1;
   width: 100%;
-  justify-content: center;
+  justify-content: flex-start;
+  min-width: 0;
+  scrollbar-width: thin;
+  scrollbar-color: #8a9baa transparent;
+  overscroll-behavior-x: contain;
 }
 
 .client-app .atlas-native-select {
@@ -140,4 +144,27 @@
   .client-app .atlas-disclaimer-attention::before {
     animation: none;
   }
+}
+
+/* Keep the first and last service reachable with mouse, touch and keyboard. */
+.client-app .atlas-filter-rail::-webkit-scrollbar { display: block; height: 5px; }
+.client-app .atlas-filter-rail::-webkit-scrollbar-thumb { background: #8a9baa; border-radius: 4px; }
+.client-app .atlas-filter-rail:focus-visible { outline: 2px solid #9cceff; outline-offset: 2px; }
+.client-app .atlas-shell { height: 100svh; background: #151a23; }
+.client-app .atlas-arcgis-map { background: #151a23 !important; }
+
+/* One stable control area, without a floating animated tools orb. */
+.client-app .atlas-tools-bubble { top: 148px; right: 16px; bottom: auto; animation: none; }
+.client-app .atlas-tools-launcher { box-shadow: none; animation: none; }
+.client-app .atlas-tools-popover { max-height: calc(100svh - 290px); overflow-y: auto; }
+.client-app .atlas-maptiler-globe .maplibregl-ctrl-attrib,
+.client-app .atlas-arcgis-map .esri-attribution { color: #d3dbe5; background: rgba(21,26,35,.9); }
+.client-app .atlas-maptiler-globe .maplibregl-ctrl-attrib a,
+.client-app .atlas-arcgis-map .esri-attribution a { color: inherit; }
+.client-app .atlas-disclaimer-attention::before { animation: none; }
+@media (max-width: 760px) {
+  .client-app .atlas-tools-bubble { top: 136px; right: 8px; }
+  .client-app .atlas-tools-launcher { width: auto; padding: 0 12px; }
+  .client-app .atlas-tools-launcher span { display: inline; }
+  .client-app .atlas-tools-popover { width: min(320px, calc(100vw - 16px)); max-height: calc(100svh - 270px); }
 }

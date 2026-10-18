@@ -5,7 +5,7 @@ import { getMapTilerApiKeys } from "@/lib/tech-api-key-registry";
 type MapTilerSdk = {
   config: { apiKey: string };
   Map: new (options: Record<string, unknown>) => any;
-  MapStyle: { STREETS: unknown };
+  MapStyle: { DATAVIZ: { DARK: unknown } };
 };
 
 declare global {
@@ -527,17 +527,20 @@ export function AtlasMapTilerGlobe({
           const current = centerZoomRef.current;
           const map = new sdk.Map({
             container: host,
-            style: sdk.MapStyle.STREETS,
+            style: sdk.MapStyle.DATAVIZ.DARK,
             center: preservedCamera?.center ?? [current.center[1], current.center[0]],
             zoom: clampZoom(preservedCamera?.zoom ?? current.zoom),
             minZoom: MIN_ZOOM,
             maxZoom: MAX_ZOOM,
             projection: "globe",
-            space: {
-              preset: "stars",
-              color: "#F8FBFF",
-            },
-            attributionControl: true,
+            space: false,
+            attributionControl: { compact: true },
+            navigationControl: false,
+            geolocateControl: false,
+            terrainControl: false,
+            fullscreenControl: false,
+            scaleControl: false,
+            projectionControl: false,
           });
           mapRef.current = map;
           let fallbackScheduledForMap = false;

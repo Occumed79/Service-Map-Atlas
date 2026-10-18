@@ -544,7 +544,9 @@ export function AtlasArcgisFlatMap({
         modulesRef.current = modules;
 
         const mapEl = document.createElement("arcgis-map") as any;
-        mapEl.setAttribute("basemap", "topo-vector");
+        mapEl.setAttribute("basemap", "dark-gray-vector");
+        // Match the global vector tiles and allow continuous world wrapping.
+        mapEl.spatialReference = { wkid: 3857 };
         mapEl.style.width = "100%";
         mapEl.style.height = "100%";
         mapEl.style.display = "block";
@@ -563,6 +565,9 @@ export function AtlasArcgisFlatMap({
         const view = mapEl.view;
         viewRef.current = view;
         view.popupEnabled = false;
+        // App controls provide navigation; preserve the provider attribution.
+        view.ui.components = ["attribution"];
+        view.background = { color: "#151a23" };
         view.constraints = {
           ...(view.constraints ?? {}),
           minZoom: MIN_ZOOM,
