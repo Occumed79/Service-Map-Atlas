@@ -146,7 +146,10 @@ try {
       };
     });
     assert.ok(geometry.logoOffset <= 1, "Logo centered on viewport");
-    assert.ok(geometry.logoWidth >= 260, "Logo stays prominent");
+    assert.ok(
+      geometry.logoWidth >= 200 && geometry.logoWidth <= 280,
+      "Logo has a compact, readable size",
+    );
     assert.ok(
       geometry.gap >= 0 && geometry.gap <= 25,
       "Globe edge stays close to button",
