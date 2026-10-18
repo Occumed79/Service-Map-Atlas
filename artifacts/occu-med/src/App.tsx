@@ -1,3 +1,5 @@
+import { useState } from "react";
+import { InternationalMapLanding } from "@/components/landing/InternationalMapLanding";
 import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -93,9 +95,12 @@ function AdminEntry() {
 }
 
 function ClientRouter() {
+  const [entered, setEntered] = useState(false);
   return (
     <Switch>
-      <Route path="/" component={() => <ClientRoute component={Home} />} />
+      <Route path="/">
+        {entered ? <ClientRoute component={Home} /> : <InternationalMapLanding onEnter={() => setEntered(true)} />}
+      </Route>
       <Route path="/login" component={Login} />
       <Route path="/accept-invite/:token" component={AcceptInvite} />
       <Route component={NotFound} />

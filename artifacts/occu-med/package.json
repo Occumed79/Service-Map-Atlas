@@ -7,7 +7,8 @@
     "dev": "vite --config vite.config.ts --host 0.0.0.0",
     "build": "vite build --config vite.config.ts",
     "serve": "vite preview --config vite.config.ts --host 0.0.0.0",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test:landing": "node scripts/landing-entry-smoke.mjs"
   },
   "devDependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -72,7 +73,9 @@
     "vaul": "^1.1.2",
     "vite": "catalog:",
     "wouter": "^3.3.5",
-    "zod": "catalog:"
+    "zod": "catalog:",
+    "@types/three": "^0.185.0",
+    "playwright": "^1.60.0"
   },
   "dependencies": {
     "@types/leaflet": "^1.9.21",
@@ -80,6 +83,8 @@
     "leaflet": "^1.9.4",
     "leaflet.markercluster": "^1.5.3",
     "react-leaflet": "^5.0.0",
-    "react-leaflet-cluster": "^2.1.0"
+    "react-leaflet-cluster": "^2.1.0",
+    "cobe": "^0.6.5",
+    "three": "^0.185.1"
   }
 }
