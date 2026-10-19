@@ -1,5 +1,4 @@
 import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { Globe2, Map as MapIcon } from "lucide-react";
 import { AtlasArcgisFlatMap, type CoverageArea } from "@/components/atlas-arcgis-flat-map-v2";
 import { SERVICE_COLORS } from "@/components/atlas-service-palette";
 
@@ -14,6 +13,7 @@ const LazyMapTilerGlobe = lazy(async () => {
 type ReachMode = "off" | "radius" | "drive";
 
 type AtlasMapProps = {
+  mode?: MapMode;
   center: [number, number];
   zoom: number;
   coverageAreas: CoverageArea[];
@@ -32,6 +32,7 @@ type MapMode = "globe" | "flat";
 type MapStatus = "loading" | "ready" | "error";
 
 export function AtlasArcgisMap({
+  mode = "globe",
   center,
   zoom,
   coverageAreas,
@@ -45,7 +46,6 @@ export function AtlasArcgisMap({
   onRequestCoverage,
   onStatusChange,
 }: AtlasMapProps) {
-  const [mode, setMode] = useState<MapMode>("globe");
   const [status, setStatus] = useState<MapStatus>("loading");
   const [error, setError] = useState<string | null>(null);
   const parentStatusRef = useRef(onStatusChange);
@@ -103,29 +103,6 @@ export function AtlasArcgisMap({
           {error ? `: ${error}` : "."}
         </div>
       )}
-
-      <div className="atlas-map-mode-toggle" role="group" aria-label="Map view">
-        <button
-          type="button"
-          className={mode === "globe" ? "active" : ""}
-          aria-pressed={mode === "globe"}
-          onClick={() => setMode("globe")}
-          title="Globe view"
-        >
-          <Globe2 aria-hidden="true" />
-          <span>Globe</span>
-        </button>
-        <button
-          type="button"
-          className={mode === "flat" ? "active" : ""}
-          aria-pressed={mode === "flat"}
-          onClick={() => setMode("flat")}
-          title="Flat 2D view"
-        >
-          <MapIcon aria-hidden="true" />
-          <span>2D</span>
-        </button>
-      </div>
     </>
   );
 }

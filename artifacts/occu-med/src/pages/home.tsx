@@ -160,12 +160,12 @@ export default function Home() {
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
   const [mapCenter, setMapCenter] = useState<[number, number]>([18, 0]);
   const [mapZoom, setMapZoom] = useState(2);
+  const [mapMode, setMapMode] = useState<"globe" | "flat">("globe");
   const [searchAnchor, setSearchAnchor] = useState<[number, number] | null>(null);
   const [reachMode, setReachMode] = useState<ReachMode>("drive");
   const [radiusMiles, setRadiusMiles] = useState(75);
   const [driveMinutes, setDriveMinutes] = useState(60);
   const [showNetworkArcs, setShowNetworkArcs] = useState(true);
-  const [toolsHintVisible, setToolsHintVisible] = useState(true);
   const [toolsOpen, setToolsOpen] = useState(false);
   const [requestOpen, setRequestOpen] = useState(false);
   const [selectedCoverage, setSelectedCoverage] = useState<CoverageArea | null>(null);
@@ -198,18 +198,6 @@ export default function Home() {
     const interval = window.setInterval(() => setClockTick(Date.now()), 30_000);
     return () => window.clearInterval(interval);
   }, []);
-
-  useEffect(() => {
-    if (!toolsHintVisible || toolsOpen) return;
-    const timeout = window.setTimeout(() => setToolsHintVisible(false), 60_000);
-    return () => window.clearTimeout(timeout);
-  }, [toolsHintVisible, toolsOpen]);
-
-  useEffect(() => {
-    if (!toolsOpen) return;
-    const timeout = window.setTimeout(() => setToolsOpen(false), 60_000);
-    return () => window.clearTimeout(timeout);
-  }, [toolsOpen]);
 
   const handleSearch = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -252,7 +240,6 @@ export default function Home() {
       setSearchAnchor(center);
       setSearchLabel(match.display_name ?? mission.location);
       setSearchTimeZone(null);
-      setToolsHintVisible(true);
       setToolsOpen(false);
 
       void lookupTimeZone(latitude, longitude).then((timeZone) => {
@@ -309,13 +296,13 @@ export default function Home() {
   };
 
   const openTools = () => {
-    setToolsHintVisible(false);
     setToolsOpen(true);
   };
 
   return (
     <div className="atlas-shell">
       <AtlasArcgisMap
+        mode={mapMode}
         center={mapCenter}
         zoom={mapZoom}
         coverageAreas={coverageAreas}
@@ -359,7 +346,14 @@ export default function Home() {
           </form>
         </GlassPanel>
 
-        <div className="atlas-filter-rail" aria-label="Mission service filters">
+        <div className="atlas-filter-rail" role="region" tabIndex={0} aria-label="Mission service filters"
+          onWheel={(event) => {
+            const rail = event.currentTarget;
+            if (Math.abs(event.deltaY) > Math.abs(event.deltaX) && rail.scrollWidth > rail.clientWidth) {
+              rail.scrollLeft += event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? rail.clientWidth : 1);
+            }
+          }}
+        >
           <button type="button" className={!selectedServices.length ? "atlas-filter active" : "atlas-filter"} onClick={() => setSelectedServices([])}>All services</button>
           {SERVICE_CATEGORIES.map((category) => (
             <button
@@ -398,13 +392,13 @@ export default function Home() {
         {!toolsOpen ? (
           <button
             type="button"
-            className={toolsHintVisible ? "atlas-tools-launcher" : "atlas-tools-launcher compact"}
+            className="atlas-tools-launcher"
             onClick={openTools}
             aria-label="Open Atlas tools"
             title="Atlas tools · road-time · radius · luminous paths"
           >
             <Sparkles aria-hidden="true" />
-            {toolsHintVisible && <span>Atlas tools</span>}
+            <span>Tools</span>
           </button>
         ) : (
           <div className="atlas-tools-popover" role="dialog" aria-label="Atlas map tools">
@@ -414,6 +408,14 @@ export default function Home() {
                 <span>{selectedServices.length ? `${selectedServices.length} mission services active` : "Road-time, radius and luminous paths"}</span>
               </div>
               <button type="button" onClick={() => setToolsOpen(false)} aria-label="Collapse Atlas tools"><X /></button>
+            </div>
+
+            <div className="atlas-tools-section">
+              <span className="atlas-tools-label">Map view</span>
+              <div className="atlas-tools-segmented" role="group" aria-label="Map view">
+                <button type="button" className={mapMode === "globe" ? "active" : ""} aria-pressed={mapMode === "globe"} onClick={() => setMapMode("globe")}>Globe</button>
+                <button type="button" className={mapMode === "flat" ? "active" : ""} aria-pressed={mapMode === "flat"} onClick={() => setMapMode("flat")}>2D</button>
+              </div>
             </div>
 
             <div className="atlas-tools-section">

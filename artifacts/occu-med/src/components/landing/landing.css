@@ -10,12 +10,7 @@
   overflow: hidden;
   color: #fff;
   background: #000;
-  font-family:
-    Inter,
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    sans-serif;
+  font-family: var(--font-sans);
 }
 /* Static, low-contrast stars stay behind the globe and entrance effect. */
 .atlas-landing::before {
