@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ClipboardPlus, Clock3, Info, Navigation, Route, Search, Sparkles, X } from "lucide-react";
+import { ClipboardPlus, Clock3, Info, Navigation, Search } from "lucide-react";
 import { useCreateServiceRequest, useRecordSearchEvent } from "@workspace/api-client-react";
 import { GlassPanel } from "@/components/ui/glass-panel";
 import { Input } from "@/components/ui/input";
@@ -160,13 +160,10 @@ export default function Home() {
   const [selectedServices, setSelectedServices] = useState<string[]>([]);
   const [mapCenter, setMapCenter] = useState<[number, number]>([18, 0]);
   const [mapZoom, setMapZoom] = useState(2);
-  const [mapMode, setMapMode] = useState<"globe" | "flat">("globe");
   const [searchAnchor, setSearchAnchor] = useState<[number, number] | null>(null);
-  const [reachMode, setReachMode] = useState<ReachMode>("drive");
+  const [reachMode, setReachMode] = useState<ReachMode>("off");
   const [radiusMiles, setRadiusMiles] = useState(75);
   const [driveMinutes, setDriveMinutes] = useState(60);
-  const [showNetworkArcs, setShowNetworkArcs] = useState(true);
-  const [toolsOpen, setToolsOpen] = useState(false);
   const [requestOpen, setRequestOpen] = useState(false);
   const [selectedCoverage, setSelectedCoverage] = useState<CoverageArea | null>(null);
   const [searchLabel, setSearchLabel] = useState("Worldwide");
@@ -240,7 +237,6 @@ export default function Home() {
       setSearchAnchor(center);
       setSearchLabel(match.display_name ?? mission.location);
       setSearchTimeZone(null);
-      setToolsOpen(false);
 
       void lookupTimeZone(latitude, longitude).then((timeZone) => {
         if (timeZone) setSearchTimeZone(timeZone);
@@ -295,14 +291,9 @@ export default function Home() {
     });
   };
 
-  const openTools = () => {
-    setToolsOpen(true);
-  };
-
   return (
     <div className="atlas-shell">
       <AtlasArcgisMap
-        mode={mapMode}
         center={mapCenter}
         zoom={mapZoom}
         coverageAreas={coverageAreas}
@@ -311,7 +302,7 @@ export default function Home() {
         reachMode={reachMode}
         radiusMiles={radiusMiles}
         driveMinutes={driveMinutes}
-        showNetworkArcs={showNetworkArcs}
+        showNetworkArcs={false}
         onMarkerClick={handleMarkerClick}
         onRequestCoverage={openRequest}
         onStatusChange={(status, message) => {
@@ -387,78 +378,6 @@ export default function Home() {
           </div>
         )}
       </GlassPanel>
-
-      <div className={toolsOpen ? "atlas-tools-bubble open" : "atlas-tools-bubble"}>
-        {!toolsOpen ? (
-          <button
-            type="button"
-            className="atlas-tools-launcher"
-            onClick={openTools}
-            aria-label="Open Atlas tools"
-            title="Atlas tools · road-time · radius · luminous paths"
-          >
-            <Sparkles aria-hidden="true" />
-            <span>Tools</span>
-          </button>
-        ) : (
-          <div className="atlas-tools-popover" role="dialog" aria-label="Atlas map tools">
-            <div className="atlas-tools-head">
-              <div>
-                <strong>Atlas tools</strong>
-                <span>{selectedServices.length ? `${selectedServices.length} mission services active` : "Road-time, radius and luminous paths"}</span>
-              </div>
-              <button type="button" onClick={() => setToolsOpen(false)} aria-label="Collapse Atlas tools"><X /></button>
-            </div>
-
-            <div className="atlas-tools-section">
-              <span className="atlas-tools-label">Map view</span>
-              <div className="atlas-tools-segmented" role="group" aria-label="Map view">
-                <button type="button" className={mapMode === "globe" ? "active" : ""} aria-pressed={mapMode === "globe"} onClick={() => setMapMode("globe")}>Globe</button>
-                <button type="button" className={mapMode === "flat" ? "active" : ""} aria-pressed={mapMode === "flat"} onClick={() => setMapMode("flat")}>2D</button>
-              </div>
-            </div>
-
-            <div className="atlas-tools-section">
-              <span className="atlas-tools-label">Reach</span>
-              <div className="atlas-tools-segmented">
-                <button type="button" className={reachMode === "radius" ? "active" : ""} onClick={() => setReachMode("radius")}>Miles</button>
-                <button type="button" className={reachMode === "drive" ? "active" : ""} onClick={() => setReachMode("drive")}>Drive</button>
-                <button type="button" className={reachMode === "off" ? "active" : ""} onClick={() => setReachMode("off")}>Hide</button>
-              </div>
-            </div>
-
-            {reachMode === "radius" && (
-              <div className="atlas-tools-options" aria-label="Straight-line radius">
-                {[25, 50, 75].map((miles) => (
-                  <button type="button" key={miles} className={radiusMiles === miles ? "active" : ""} onClick={() => setRadiusMiles(miles)}>{miles} mi</button>
-                ))}
-              </div>
-            )}
-
-            {reachMode === "drive" && (
-              <div className="atlas-tools-options" aria-label="Drive-time reach">
-                {[30, 60, 90].map((minutes) => (
-                  <button type="button" key={minutes} className={driveMinutes === minutes ? "active" : ""} onClick={() => setDriveMinutes(minutes)}>{minutes} min</button>
-                ))}
-                <span className="atlas-tools-estimate">30/60 road-time · 90 estimated</span>
-              </div>
-            )}
-
-            <button type="button" className={showNetworkArcs ? "atlas-tools-toggle active" : "atlas-tools-toggle"} onClick={() => setShowNetworkArcs((value) => !value)}>
-              <Route aria-hidden="true" />
-              <span>
-                <strong>Luminous network paths</strong>
-                <small>Connect the search point to matching coverage</small>
-              </span>
-              <i aria-hidden="true" />
-            </button>
-
-            {selectedServices.length > 0 && (
-              <button type="button" className="atlas-tools-clear" onClick={() => setSelectedServices([])}>Clear mission services</button>
-            )}
-          </div>
-        )}
-      </div>
 
       <Button type="button" className="atlas-request-button" onClick={() => openRequest(null)}>
         <ClipboardPlus /> Request service
