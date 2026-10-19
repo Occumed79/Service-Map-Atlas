@@ -252,17 +252,14 @@ try {
       assert.equal(await visibleInside(last), true, "Mouse wheel reaches final service");
       await rail.evaluate((element) => { element.scrollLeft = 0; });
       assert.equal(await visibleInside(first), true, "Can return to first service");
-      assert.equal(await page.locator(".atlas-map-mode-toggle").count(), 0, "No separate floating view toolbar");
-      await page.getByRole("button", { name: "Open Atlas tools" }).click();
-      const tools = page.getByRole("dialog", { name: "Atlas map tools" });
-      await tools.getByRole("button", { name: "2D", exact: true }).click();
-      const map = page.getByRole("application", { name: "Occu-Med coverage map", exact: true });
+      assert.equal(await page.getByRole("button", { name: "Open Atlas tools" }).count(), 0, "Atlas tools launcher removed");
+      assert.equal(await page.getByRole("dialog", { name: "Atlas map tools" }).count(), 0, "Atlas tools popup removed");
+      assert.equal(await page.getByRole("button", { name: "2D", exact: true }).count(), 0, "2D view switch removed");
+      const map = page.getByRole("application", { name: "Occu-Med coverage globe", exact: true });
       await map.waitFor();
       const box = await map.boundingBox();
-      assert.equal(box.width, scenario.width, "2D map host fills viewport width");
-      assert.equal(box.height, scenario.height, "2D map host fills viewport height");
-      assert.equal(await map.evaluate((element) => getComputedStyle(element).backgroundColor), "rgb(21, 26, 35)", "Dark map fallback background");
-      await page.getByRole("button", { name: "Collapse Atlas tools" }).click();
+      assert.equal(box.width, scenario.width, "Globe map host fills viewport width");
+      assert.equal(box.height, scenario.height, "Globe map host fills viewport height");
       await page.screenshot({ path: `${output}/${scenario.name}-map-layout.png`, fullPage: true });
     }
     if (scenario.name === "sign-in") {

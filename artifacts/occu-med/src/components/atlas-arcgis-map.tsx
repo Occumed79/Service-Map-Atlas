@@ -1,5 +1,5 @@
-import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { AtlasArcgisFlatMap, type CoverageArea } from "@/components/atlas-arcgis-flat-map-v2";
+import { lazy, Suspense, useLayoutEffect, useRef, useState } from "react";
+import type { CoverageArea } from "@/components/atlas-arcgis-flat-map-v2";
 import { SERVICE_COLORS } from "@/components/atlas-service-palette";
 
 export { SERVICE_COLORS } from "@/components/atlas-service-palette";
@@ -13,7 +13,6 @@ const LazyMapTilerGlobe = lazy(async () => {
 type ReachMode = "off" | "radius" | "drive";
 
 type AtlasMapProps = {
-  mode?: MapMode;
   center: [number, number];
   zoom: number;
   coverageAreas: CoverageArea[];
@@ -28,11 +27,9 @@ type AtlasMapProps = {
   onStatusChange?: (status: "loading" | "ready" | "error", message?: string) => void;
 };
 
-type MapMode = "globe" | "flat";
 type MapStatus = "loading" | "ready" | "error";
 
 export function AtlasArcgisMap({
-  mode = "globe",
   center,
   zoom,
   coverageAreas,
@@ -54,11 +51,6 @@ export function AtlasArcgisMap({
   useLayoutEffect(() => {
     parentStatusRef.current?.("ready");
   }, []);
-
-  useEffect(() => {
-    setStatus("loading");
-    setError(null);
-  }, [mode]);
 
   const handleRendererStatus = (nextStatus: MapStatus, message?: string) => {
     setStatus(nextStatus);
@@ -83,23 +75,19 @@ export function AtlasArcgisMap({
 
   return (
     <>
-      {mode === "globe" ? (
-        <Suspense fallback={null}>
-          <LazyMapTilerGlobe {...commonProps} />
-        </Suspense>
-      ) : (
-        <AtlasArcgisFlatMap {...commonProps} />
-      )}
+      <Suspense fallback={null}>
+        <LazyMapTilerGlobe {...commonProps} />
+      </Suspense>
 
       {status === "loading" && (
         <div className="atlas-map-status" role="status">
-          Loading {mode === "globe" ? "globe" : "2D map"}…
+          Loading globe…
         </div>
       )}
 
       {status === "error" && (
         <div className="atlas-map-status atlas-map-status-error" role="alert">
-          {mode === "globe" ? "MapTiler globe" : "ArcGIS 2D map"} failed to load
+          MapTiler globe failed to load
           {error ? `: ${error}` : "."}
         </div>
       )}
