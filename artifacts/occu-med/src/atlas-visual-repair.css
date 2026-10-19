@@ -29,30 +29,11 @@
   border-color: color-mix(in srgb, var(--filter-accent) 30%, white) !important;
 }
 
-/* The advanced tools never vanish completely. The label fades away, leaving one tiny orb. */
-.atlas-tools-launcher.compact {
-  width: 44px;
-  min-width: 44px;
-  padding: 0;
-  justify-content: center;
-  border: 1px solid transparent;
-  background:
-    linear-gradient(rgba(253, 254, 255, .93), rgba(244, 248, 252, .88)) padding-box,
-    conic-gradient(from 210deg, #FFFF00, #31C501, #00C7FF, #5021E4, #A022E5, #FFFF00) border-box;
-  box-shadow:
-    0 14px 38px rgba(24, 48, 74, .2),
-    0 0 20px rgba(0, 199, 255, .16),
-    0 0 30px rgba(160, 34, 229, .1),
-    inset 0 1px 0 rgba(255,255,255,.98);
-}
-
-.atlas-tools-launcher.compact svg {
-  width: 17px;
-  height: 17px;
-  color: #5021E4;
-  filter:
-    drop-shadow(0 0 5px rgba(80, 33, 228, .45))
-    drop-shadow(0 0 10px rgba(0, 199, 255, .28));
+/* Service labels stay readable and neutral; category dots retain their original colors. */
+.atlas-filter-category,
+.atlas-filter-category.active,
+.atlas-filter-category:hover {
+  color: #17394b !important;
 }
 
 /* Every service is visible on the coverage card. No +N placeholders. */
@@ -90,12 +71,6 @@
 }
 
 @media (max-width: 760px) {
-  .atlas-tools-launcher.compact {
-    width: 40px;
-    min-width: 40px;
-    height: 40px;
-  }
-
   .atlas-coverage-card-services {
     max-height: 92px;
   }
