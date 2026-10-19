@@ -5,7 +5,7 @@ import { getMapTilerApiKeys } from "@/lib/tech-api-key-registry";
 type MapTilerSdk = {
   config: { apiKey: string };
   Map: new (options: Record<string, unknown>) => any;
-  MapStyle: { DATAVIZ: { DARK: unknown } };
+  MapStyle: { OUTDOOR: { DARK: unknown }; DATAVIZ: { DARK: unknown } };
 };
 
 declare global {
@@ -527,7 +527,7 @@ export function AtlasMapTilerGlobe({
           const current = centerZoomRef.current;
           const map = new sdk.Map({
             container: host,
-            style: sdk.MapStyle.DATAVIZ.DARK,
+            style: sdk.MapStyle.OUTDOOR.DARK,
             center: preservedCamera?.center ?? [current.center[1], current.center[0]],
             zoom: clampZoom(preservedCamera?.zoom ?? current.zoom),
             minZoom: MIN_ZOOM,
@@ -872,7 +872,7 @@ export function AtlasMapTilerGlobe({
                   style={{
                     borderColor: hexToCssRgba(serviceColor, 0.32),
                     background: hexToCssRgba(serviceColor, 0.12),
-                    color: serviceColor,
+                    color: "#17394b",
                   }}
                 >
                   {service}
